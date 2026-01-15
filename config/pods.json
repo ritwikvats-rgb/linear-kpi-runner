@@ -1,0 +1,26 @@
+{
+  "FTS": {
+    "teamId": "03cca83c-25b8-45f5-be78-115911d25290",
+    "initiativeName": "Q1  2026 - FTS Roadmap"
+  },
+  "GTS": {
+    "teamId": "78142d8b-2f4c-4f5c-bfed-512f671319fb",
+    "initiativeName": "Q1 2026 - GTS Roadmap"
+  },
+  "Control Center": {
+    "teamId": "4a3d31ec-7fc2-49c8-8bbe-46b99c2311a5",
+    "initiativeName": "Q1 2026 - Control Center Roadmap"
+  },
+  "Talent Studio": {
+    "teamId": "84f3b4b9-7987-4d91-b07a-b7c067f02bff",
+    "initiativeName": "Q1 2026 - Talent Studio Roadmap"
+  },
+  "Platform": {
+    "teamId": "d7a2a637-ff17-4759-95e4-d1a8a51ba322",
+    "initiativeName": "Q1 2026 - Platform Roadmap"
+  },
+  "Growth & Reuse": {
+    "teamId": "8a22c37c-7e42-41ac-903b-fb262a0528e5",
+    "initiativeName": "Q1 2026 - GR Roadmap"
+  }
+}

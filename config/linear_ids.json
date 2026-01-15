@@ -1,0 +1,219 @@
+{
+  "org": {
+    "id": "6f55024a-2c70-4c78-8bd9-5127d58360f9",
+    "name": "Telus Digital AI Engineering",
+    "urlKey": "playment"
+  },
+  "pods": {
+    "FTS": {
+      "teamId": "03cca83c-25b8-45f5-be78-115911d25290",
+      "initiativeName": "Q1  2026 - FTS Roadmap",
+      "initiativeId": "a7218ead-1811-40ef-b664-d41f1e6c17fe",
+      "projects": [
+        {
+          "id": "acf7c3e9-37d2-42b0-bdd0-069de66a3325",
+          "name": "Q1 2026 : Sonar cloud analysis for Contributor App",
+          "state": "backlog"
+        },
+        {
+          "id": "42740696-0312-4a26-9a76-af98c31ef991",
+          "name": "Q1 2026 : Additional Settings Refactor",
+          "state": "backlog"
+        },
+        {
+          "id": "f1ef88e2-53f5-42fb-8ec9-17f57e57cb1b",
+          "name": "Q1 2026 : Step Settings Refactor",
+          "state": "backlog"
+        },
+        {
+          "id": "0cb2a86b-44e2-44fa-896d-59a743778246",
+          "name": "Q1 2026 : Fix the flaky tests that are causing build failures.",
+          "state": "backlog"
+        },
+        {
+          "id": "b22eba82-8427-4804-a759-810e3494ae9e",
+          "name": "Q1 2026 : ESLint Enhancement",
+          "state": "backlog"
+        },
+        {
+          "id": "d4f37e49-d25d-47e4-8bd7-e6e4f1d4101e",
+          "name": "Q1 2026 : Circle CI build pipeline Optimization",
+          "state": "backlog"
+        },
+        {
+          "id": "9c315de3-3b9a-4045-8905-42a3109b80e4",
+          "name": "Q1 2026 : Model interaction config upgrades",
+          "state": "backlog"
+        },
+        {
+          "id": "20a5aae7-48e6-4270-9f78-8e19594e7b3d",
+          "name": "Q1 2026 : Contributor communications",
+          "state": "backlog"
+        },
+        {
+          "id": "95baf81b-b304-4f25-9c67-88e785243df2",
+          "name": "Q1 2026 : Core flow UX improvements",
+          "state": "backlog"
+        },
+        {
+          "id": "4ec769a2-8237-4489-aca5-8c4cd0aea3fd",
+          "name": "Q1 2026 : Tagging system V2",
+          "state": "backlog"
+        },
+        {
+          "id": "810b1592-0d4f-4388-afee-7d81b97d06c9",
+          "name": "Q1 2026 : Updated project/workflow level statuses",
+          "state": "backlog"
+        },
+        {
+          "id": "1273021c-248b-4332-8fee-e61e6ba1a53f",
+          "name": "Q1 2026 : Improved product guidance",
+          "state": "backlog"
+        },
+        {
+          "id": "0d1b6fba-20ea-45e2-9b63-8717fe61f03d",
+          "name": "Q1 2026 : Recovery of cancelled jobs",
+          "state": "backlog"
+        },
+        {
+          "id": "3429c850-42c3-443a-989a-ceb965f7d9be",
+          "name": "Q1 2026 : FTS Evals manual actions replacements",
+          "state": "started"
+        },
+        {
+          "id": "7346425d-2b2e-48e9-8fb9-a26b215703a4",
+          "name": "Q1 2026 : Data-Driven Cohorts & automations",
+          "state": "started"
+        },
+        {
+          "id": "37429829-677c-4305-9266-389c7587747d",
+          "name": "Q1 2026 : Dynamic Workflows V1",
+          "state": "backlog"
+        },
+        {
+          "id": "dc499baf-0d70-4b55-b893-e43f9af18a6b",
+          "name": "Q1 2026 : Customer-facing product experience for FTS",
+          "state": "backlog"
+        }
+      ]
+    },
+    "GTS": {
+      "teamId": "78142d8b-2f4c-4f5c-bfed-512f671319fb",
+      "initiativeName": "Q1 2026 - GTS Roadmap",
+      "initiativeId": "9b99df9c-aaa3-4b77-a355-bab91570506e",
+      "projects": []
+    },
+    "Control Center": {
+      "teamId": "4a3d31ec-7fc2-49c8-8bbe-46b99c2311a5",
+      "initiativeName": "Q1 2026 - Control Center Roadmap",
+      "initiativeId": "3cb034d8-2255-4cda-88de-1c4c2bbcf682",
+      "projects": [
+        {
+          "id": "99ace9b1-b90e-482d-8e08-c529520f91ed",
+          "name": "Q1 26 - Den enhancements",
+          "state": "backlog"
+        },
+        {
+          "id": "75f6c5c8-7a14-4968-8a33-8fe1af80462b",
+          "name": "Q1 26 - Introducing cache (Tech debt)",
+          "state": "backlog"
+        },
+        {
+          "id": "3e2d1239-c1ca-4236-b014-189734353aa3",
+          "name": "Q1 26 - Performance initiative (Tech debt)",
+          "state": "backlog"
+        },
+        {
+          "id": "826416a4-9972-4945-a9e2-ed3139315d6e",
+          "name": "Q1 26 - TimeToFill Data Model & Metrics Engine",
+          "state": "backlog"
+        },
+        {
+          "id": "820ff9c8-9ed6-41c3-abf0-6c51894a74a9",
+          "name": "Q1 26 - Contributor Portal",
+          "state": "backlog"
+        },
+        {
+          "id": "f66dae32-c82a-4119-9671-4ab578a2405f",
+          "name": "Q1 26 - Auto-Ingest High Severity Flags tasks from Sisense",
+          "state": "backlog"
+        },
+        {
+          "id": "5496328e-dc63-46fe-b290-bfa45238cdd4",
+          "name": "Q1 26 - New External Signal Integration (EPP)",
+          "state": "backlog"
+        },
+        {
+          "id": "d719b060-6e65-46b3-bd68-1c0f914ae2b7",
+          "name": "Q1 26 - Rater Assitant V2",
+          "state": "backlog"
+        },
+        {
+          "id": "d309301e-6a0e-4f7d-a9e3-b5a34ccaf3f6",
+          "name": "Q1 26 - Apex Agent",
+          "state": "backlog"
+        },
+        {
+          "id": "b489159f-ff78-46ea-980f-467623c8f95c",
+          "name": "Q1 26 - Flexible schema builder for Projects",
+          "state": "backlog"
+        },
+        {
+          "id": "b0eada13-2e03-4f96-9064-094f9c3145c7",
+          "name": "Q1 26 - Workflow orchestrator",
+          "state": "backlog"
+        }
+      ]
+    },
+    "Talent Studio": {
+      "teamId": "84f3b4b9-7987-4d91-b07a-b7c067f02bff",
+      "initiativeName": "Q1 2026 - Talent Studio Roadmap",
+      "initiativeId": "c47b5ed9-cb15-475f-ba37-edb6691dd334",
+      "projects": [
+        {
+          "id": "a89eadf4-6597-48c3-9f27-6c15d87b2fa4",
+          "name": "[Talent Studio] Observability",
+          "state": "started"
+        },
+        {
+          "id": "d8e33353-85e6-4916-bef7-e2df06bd0949",
+          "name": "Provisioning",
+          "state": "backlog"
+        },
+        {
+          "id": "64c5ace0-7975-47f3-9dde-e4d9f9bf9b29",
+          "name": "Intelligent Qualification Agent V2",
+          "state": "backlog"
+        },
+        {
+          "id": "fdc5d886-1dca-4e6d-81ea-eae881a3ee3d",
+          "name": "Solutioning for Candidate Recommendation System",
+          "state": "backlog"
+        },
+        {
+          "id": "b88d35a9-ea77-4ff6-8c2c-1890fdabb600",
+          "name": "Automated fraud detection V2",
+          "state": "started"
+        }
+      ]
+    },
+    "Platform": {
+      "teamId": "d7a2a637-ff17-4759-95e4-d1a8a51ba322",
+      "initiativeName": "Q1 2026 - Platform Roadmap",
+      "initiativeId": "ac096465-261e-4c77-82ae-dd1037452461",
+      "projects": [
+        {
+          "id": "7c14ff2c-33e6-48c4-8f7b-46c23cfc46e2",
+          "name": "New contributor portal : Gradien - Q1",
+          "state": "started"
+        }
+      ]
+    },
+    "Growth & Reuse": {
+      "teamId": "8a22c37c-7e42-41ac-903b-fb262a0528e5",
+      "initiativeName": "Q1 2026 - GR Roadmap",
+      "initiativeId": "56a4821d-e86d-4d3e-b417-fcc5405d7e0d",
+      "projects": []
+    }
+  }
+}

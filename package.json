@@ -1,0 +1,8 @@
+{
+  "name": "linear-kpi-runner",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "better-sqlite3": "^12.6.0"
+  }
+}

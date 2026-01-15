@@ -1,0 +1,27 @@
+# Linear KPI Runner
+
+## What it does
+- Generates pod-wise cycle KPI report
+- Tracks spillover using SQLite state
+- Produces CSV and Markdown outputs in out/
+
+## Prerequisites
+- Node.js 20+
+
+## Install
+npm install
+
+## Run
+LINEAR_API_KEY="YOUR_KEY" node scripts/runWeeklyKpi.js
+
+## Config files
+- config/pods.json
+- config/cycle_calendar.json
+- config/label_ids.json
+- config/linear_ids.json
+
+## Outputs
+- out/pod_cycle_kpi.csv
+- out/pod_feature_movement.csv
+- out/kpi_weekly_report.md
+
