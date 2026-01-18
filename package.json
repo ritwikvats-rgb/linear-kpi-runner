@@ -1,8 +1,15 @@
 {
   "name": "linear-kpi-runner",
-  "version": "1.0.0",
   "private": true,
   "dependencies": {
-    "better-sqlite3": "^12.6.0"
+    "better-sqlite3": "^12.6.0",
+    "dotenv": "^17.2.3",
+    "undici": "^7.18.2"
+  },
+  "scripts": {
+    "snapshot": "node -r dotenv/config scripts/generateSnapshot.js dotenv_config_path=.env",
+    "debug:snapshot": "node -r dotenv/config scripts/generateSnapshot.js dotenv_config_path=.env --debug",
+    "agent": "node -r dotenv/config agent/src/index.js dotenv_config_path=.env"
   }
 }
+

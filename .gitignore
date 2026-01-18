@@ -4,3 +4,12 @@ out/
 .env
 state/*.db
 .vscode/
+# agent generated output (keep folder, ignore files)
+agent/output/*
+!agent/output/.gitkeep
+.env
+agent/output/*.json
+agent/output/*.jsonl
+agent/output/*.md
+out/
+node_modules/agent/.env.BACKUP
