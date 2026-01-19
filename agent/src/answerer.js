@@ -675,12 +675,13 @@ async function generateAllPodsSummary() {
 }
 
 /**
- * Generate narrative summary for a single pod
- * Output format:
- * a) One paragraph summary of what's happening NOW
- * b) Short "What changed recently" bullet list (max 5)
- * c) Blockers/Risks only if they exist
- * d) Suggestions only if blockers/risks exist
+ * Generate comprehensive narrative summary for a single pod
+ * Output includes:
+ * a) Overview summary with DEL metrics
+ * b) All projects with their status
+ * c) DEL tracking (planned, completed, spillover, current cycle)
+ * d) Recent activity and comments
+ * e) Blockers/Risks if any
  */
 async function generatePodNarrative(podName) {
   // Get live pod data
@@ -703,42 +704,130 @@ async function generatePodNarrative(podName) {
   const summaryResult = await getLivePodSummary(podName);
   const issueStats = summaryResult.success ? summaryResult.issueStats : { total: 0, active: 0, blockers: 0, risks: 0 };
 
-  let out = "";
-
-  // ============== (a) ONE PARAGRAPH SUMMARY ==============
-  out += `${pod} Summary\n`;
-  out += `${"=".repeat(pod.length + 8)}\n\n`;
-
-  // Build narrative paragraph
-  const narrativeParts = [];
-
-  // Project status
-  if (projectCount === 0) {
-    narrativeParts.push(`${pod} currently has no projects mapped to its Q1 2026 initiative`);
-  } else {
-    const statusParts = [];
-    if (stats.in_flight > 0) statusParts.push(`${stats.in_flight} in-flight`);
-    if (stats.done > 0) statusParts.push(`${stats.done} completed`);
-    if (stats.not_started > 0) statusParts.push(`${stats.not_started} not yet started`);
-
-    narrativeParts.push(`${pod} has ${projectCount} planned features for Q1 2026: ${statusParts.join(", ")}`);
-
-    // Highlight active projects
-    const inFlightProjects = projects.filter(p => p.normalizedState === "in_flight");
-    if (inFlightProjects.length > 0 && inFlightProjects.length <= 3) {
-      narrativeParts.push(`Currently active: ${inFlightProjects.map(p => p.name.replace(/^Q1 2026\s*:\s*/i, "")).join(", ")}`);
+  // Get DEL metrics for this pod
+  const delResult = await computeCombinedKpi();
+  let podDelData = null;
+  let currentCycle = "C1";
+  if (delResult.success) {
+    currentCycle = delResult.fallbackCycle || delResult.currentCycle || "C1";
+    const cycleRows = delResult.cycleKpi?.filter(r => r.pod === pod && r.cycle === currentCycle) || [];
+    if (cycleRows.length > 0) {
+      podDelData = cycleRows[0];
     }
   }
 
-  // Blocker status
-  if (issueStats.blockers > 0) {
-    narrativeParts.push(`There ${issueStats.blockers === 1 ? "is" : "are"} ${issueStats.blockers} blocker${issueStats.blockers === 1 ? "" : "s"} requiring attention`);
+  // Fetch pending DELs for this pod
+  const pendingDelsResult = await fetchPendingDELs(pod);
+  const pendingDels = pendingDelsResult.success ? pendingDelsResult.pendingDELs : [];
+
+  // Fetch DELs for current cycle
+  const cycleDelsResult = await fetchDELsByCycle(currentCycle, pod);
+  const cycleDels = cycleDelsResult.success ? cycleDelsResult.dels : [];
+
+  let out = "";
+
+  // ============== HEADER ==============
+  out += `${"═".repeat(60)}\n`;
+  out += `  ${pod} - Comprehensive Status Report\n`;
+  out += `${"═".repeat(60)}\n\n`;
+
+  // ============== (a) OVERVIEW SUMMARY ==============
+  out += `📊 OVERVIEW\n`;
+  out += `${"─".repeat(40)}\n`;
+
+  // Project stats
+  out += `Projects: ${projectCount} total\n`;
+  out += `  • Completed: ${stats.done}\n`;
+  out += `  • In-Flight: ${stats.in_flight}\n`;
+  out += `  • Not Started: ${stats.not_started}\n`;
+  if (stats.cancelled > 0) out += `  • Cancelled: ${stats.cancelled}\n`;
+
+  // DEL stats
+  if (podDelData) {
+    out += `\nDEL Metrics (Cycle ${currentCycle}):\n`;
+    out += `  • Committed: ${podDelData.committed}\n`;
+    out += `  • Completed: ${podDelData.completed}\n`;
+    out += `  • Delivery: ${podDelData.deliveryPct}\n`;
+    if (podDelData.spillover > 0) {
+      out += `  • Spillover: ${podDelData.spillover}\n`;
+    }
   }
 
-  out += narrativeParts.join(". ") + ".\n\n";
+  out += `\n`;
 
-  // ============== (b) WHAT CHANGED RECENTLY ==============
-  out += `What changed recently:\n`;
+  // ============== (b) ALL PROJECTS ==============
+  out += `📋 PROJECTS (${projectCount})\n`;
+  out += `${"─".repeat(40)}\n`;
+
+  if (projectCount === 0) {
+    out += `No projects mapped to Q1 2026 initiative.\n`;
+  } else {
+    // Group projects by state
+    const inFlight = projects.filter(p => p.normalizedState === "in_flight");
+    const done = projects.filter(p => p.normalizedState === "done");
+    const notStarted = projects.filter(p => p.normalizedState === "not_started");
+
+    if (inFlight.length > 0) {
+      out += `\n🔄 In-Flight (${inFlight.length}):\n`;
+      for (const p of inFlight) {
+        const shortName = p.name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "").replace(/^\[Q1 2026 Project\]-?/i, "").replace(/^\[Q1 Project 2026\]-?/i, "");
+        const lead = p.lead ? ` (Lead: ${p.lead})` : "";
+        out += `  • ${shortName}${lead}\n`;
+      }
+    }
+
+    if (done.length > 0) {
+      out += `\n✅ Completed (${done.length}):\n`;
+      for (const p of done) {
+        const shortName = p.name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "").replace(/^\[Q1 2026 Project\]-?/i, "").replace(/^\[Q1 Project 2026\]-?/i, "");
+        out += `  • ${shortName}\n`;
+      }
+    }
+
+    if (notStarted.length > 0) {
+      out += `\n⏳ Not Started (${notStarted.length}):\n`;
+      for (const p of notStarted) {
+        const shortName = p.name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "").replace(/^\[Q1 2026 Project\]-?/i, "").replace(/^\[Q1 Project 2026\]-?/i, "");
+        out += `  • ${shortName}\n`;
+      }
+    }
+  }
+
+  out += `\n`;
+
+  // ============== (c) DEL TRACKING ==============
+  out += `📈 DEL TRACKING (Cycle ${currentCycle})\n`;
+  out += `${"─".repeat(40)}\n`;
+
+  if (cycleDels.length === 0) {
+    out += `No DELs committed to cycle ${currentCycle}.\n`;
+  } else {
+    const completedDels = cycleDels.filter(d => d.isCompleted);
+    const pendingDelsList = cycleDels.filter(d => !d.isCompleted);
+
+    out += `Total: ${cycleDels.length} DELs | Completed: ${completedDels.length} | Pending: ${pendingDelsList.length}\n\n`;
+
+    if (pendingDelsList.length > 0) {
+      out += `⚠️ Pending DELs:\n`;
+      for (const del of pendingDelsList) {
+        const assignee = del.assignee !== "Unassigned" ? ` (${del.assignee})` : "";
+        out += `  • [${del.identifier}] ${del.title}${assignee} - ${del.state}\n`;
+      }
+      out += `\n`;
+    }
+
+    if (completedDels.length > 0) {
+      out += `✅ Completed DELs:\n`;
+      for (const del of completedDels) {
+        out += `  • [${del.identifier}] ${del.title}\n`;
+      }
+      out += `\n`;
+    }
+  }
+
+  // ============== (d) RECENT ACTIVITY ==============
+  out += `🕐 RECENT ACTIVITY\n`;
+  out += `${"─".repeat(40)}\n`;
 
   // Get recently updated projects (sorted by updatedAt)
   const recentProjects = [...projects]
@@ -746,42 +835,34 @@ async function generatePodNarrative(podName) {
     .slice(0, 5);
 
   if (recentProjects.length === 0) {
-    out += `- No recent project activity detected\n`;
+    out += `No recent project activity detected.\n`;
   } else {
     for (const p of recentProjects) {
-      const shortName = p.name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
+      const shortName = p.name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "").replace(/^\[Q1 2026 Project\]-?/i, "").replace(/^\[Q1 Project 2026\]-?/i, "");
       const updatedDate = p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : "unknown";
       const stateText = p.normalizedState === "in_flight" ? "in progress" : p.normalizedState === "done" ? "completed" : "planned";
-      out += `- ${shortName} (${stateText}, updated ${updatedDate})\n`;
+      out += `  • ${shortName} (${stateText}) - updated ${updatedDate}\n`;
     }
   }
 
   out += `\n`;
 
-  // ============== (c) BLOCKERS/RISKS ==============
+  // ============== (e) BLOCKERS/RISKS ==============
   if (issueStats.blockers > 0 || issueStats.risks > 0) {
-    out += `Blockers/Risks:\n`;
+    out += `🚨 BLOCKERS & RISKS\n`;
+    out += `${"─".repeat(40)}\n`;
     if (issueStats.blockers > 0) {
-      out += `- ${issueStats.blockers} blocker issue${issueStats.blockers === 1 ? "" : "s"} labeled in Linear\n`;
+      out += `  • ${issueStats.blockers} blocker issue${issueStats.blockers === 1 ? "" : "s"} requiring attention\n`;
     }
     if (issueStats.risks > 0) {
-      out += `- ${issueStats.risks} risk item${issueStats.risks === 1 ? "" : "s"} flagged\n`;
+      out += `  • ${issueStats.risks} risk item${issueStats.risks === 1 ? "" : "s"} flagged\n`;
     }
-
-    // ============== (d) SUGGESTIONS ==============
-    out += `\nSuggestions:\n`;
-    if (issueStats.blockers > 0) {
-      out += `- Review blocker issues and assign owners if not already done\n`;
-      out += `- Consider escalating if blockers have been open for more than 2 days\n`;
-    }
-    if (issueStats.risks > 0) {
-      out += `- Evaluate risk items and determine mitigation strategies\n`;
-    }
-  } else {
-    out += `No actionable blockers detected.\n`;
+    out += `\n`;
   }
 
-  out += `\n*Source: LIVE from Linear (${projectsResult.fetchedAt})*`;
+  // ============== FOOTER ==============
+  out += `${"─".repeat(60)}\n`;
+  out += `*Source: LIVE from Linear (${projectsResult.fetchedAt})*`;
 
   return out;
 }
