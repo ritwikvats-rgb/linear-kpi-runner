@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: kpi-assistant
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LINEAR_API_KEY
+        sync: false
+      - key: FUELIX_API_KEY
+        sync: false
+    healthCheckPath: /api/health

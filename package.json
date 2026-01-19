@@ -1,6 +1,9 @@
 {
   "name": "linear-kpi-runner",
   "private": true,
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "better-sqlite3": "^12.6.0",
     "dotenv": "^17.2.3",
