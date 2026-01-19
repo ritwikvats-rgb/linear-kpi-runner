@@ -769,12 +769,13 @@ async function fetchPodCommentsSummary(podName, projects) {
     const messages = [
       {
         role: "system",
-        content: `You are a project status summarizer. Given recent comments from Linear issues, provide a brief 2-3 sentence summary of:
-1. What teams are working on
-2. Any concerns or blockers mentioned
-3. Overall progress sentiment
+        content: `You are a project status summarizer. Summarize recent Linear comments in 2-3 concise sentences.
 
-Be concise and factual. Focus on actionable information.`
+Rules:
+- NO markdown formatting (no **, ##, bullets, etc.)
+- Write in plain professional prose
+- Focus on: current work, blockers, and progress
+- Be factual and direct`
       },
       { role: "user", content: `Recent comments from ${podName} pod:\n${combinedText}` },
     ];
@@ -782,7 +783,7 @@ Be concise and factual. Focus on actionable information.`
     return {
       commentCount: allComments.reduce((sum, p) => sum + p.comments.length, 0),
       projectCount: allComments.length,
-      summary: summary.trim(),
+      summary: summary.trim().replace(/\*\*/g, "").replace(/^#+\s*/gm, ""),
     };
   } catch (e) {
     return {
@@ -816,14 +817,20 @@ async function generatePodInsights(pod, stats, podDelData, issueStats, cycleDels
     const messages = [
       {
         role: "system",
-        content: `You are a KPI analyst. Given pod metrics, provide 2-3 specific, actionable insights. Be direct and helpful. No fluff.
+        content: `You are a KPI analyst. Provide 2-3 actionable insights based on pod metrics.
 
-Format as bullet points starting with an action verb.`
+Rules:
+- NO markdown (no **, ##, etc.)
+- Start each insight with a number: 1. 2. 3.
+- Keep each insight to one sentence
+- Be specific with numbers from the data
+- Focus on actions, not observations`
       },
       { role: "user", content: `Pod metrics for ${pod}:\n${JSON.stringify(dataContext, null, 2)}` },
     ];
     const insights = await fuelixChat({ messages });
-    return insights.trim();
+    // Strip any markdown that might have been added
+    return insights.trim().replace(/\*\*/g, "").replace(/^#+\s*/gm, "").replace(/^-\s+/gm, "");
   } catch (e) {
     return null;
   }
