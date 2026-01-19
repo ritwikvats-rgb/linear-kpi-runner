@@ -437,18 +437,30 @@ async function computeWeeklyKpi() {
     computeFeatureMovement(),
   ]);
 
-  if (!cycleResult.success) {
-    return cycleResult;
+  // Return both KPIs even if one fails - partial success is better than total failure
+  const hasDelData = cycleResult.success && cycleResult.cycleKpi?.length > 0;
+  const hasFeatureData = featureResult.success && featureResult.featureMovement?.length > 0;
+
+  if (!hasDelData && !hasFeatureData) {
+    return {
+      success: false,
+      error: "Both KPI computations failed",
+      message: `DEL: ${cycleResult.error || "No data"}. Feature Movement: ${featureResult.error || "No data"}`,
+    };
   }
 
   return {
     success: true,
-    cycleKpi: cycleResult.cycleKpi,
+    cycleKpi: cycleResult.cycleKpi || [],
     currentCycle: cycleResult.currentCycle,
     fallbackCycle: cycleResult.fallbackCycle,
-    featureMovement: featureResult.featureMovement,
-    fetchedAt: cycleResult.fetchedAt,
-    source: cycleResult.source,
+    featureMovement: featureResult.featureMovement || [],
+    fetchedAt: cycleResult.fetchedAt || featureResult.fetchedAt || new Date().toISOString(),
+    source: cycleResult.source || featureResult.source || "live",
+    delSuccess: hasDelData,
+    featureSuccess: hasFeatureData,
+    delError: !hasDelData ? (cycleResult.error || "No DEL data") : null,
+    featureError: !hasFeatureData ? (featureResult.error || "No feature data") : null,
   };
 }
 
@@ -696,6 +708,213 @@ function generateInsights(result) {
 }
 
 /**
+ * Fetch DELs committed to a specific cycle for a pod or all pods
+ * @param {string} cycle - Cycle key (e.g., "C1", "C2")
+ * @param {string|null} podNameFilter - Optional pod name to filter by
+ * @returns {object} - { success, dels: [...], fetchedAt, ... }
+ */
+async function fetchDELsByCycle(cycle, podNameFilter = null) {
+  const labelIds = loadLabelIds();
+  const cycleCalendar = loadCycleCalendar();
+  const podsConfig = loadPodsConfig();
+
+  if (!labelIds) {
+    return {
+      success: false,
+      error: "MISSING_LABEL_IDS",
+      message: "config/label_ids.json not found. Run the weekly KPI script first to generate it.",
+    };
+  }
+
+  if (!podsConfig) {
+    return {
+      success: false,
+      error: "MISSING_PODS_CONFIG",
+      message: "No pods configuration found.",
+    };
+  }
+
+  const delLabelId = labelIds.DEL;
+  const cancelledLabelId = labelIds["DEL-CANCELLED"];
+
+  if (!delLabelId) {
+    return {
+      success: false,
+      error: "MISSING_DEL_LABEL",
+      message: "DEL label ID not found in config/label_ids.json",
+    };
+  }
+
+  // Validate cycle
+  const cycleUpper = cycle.toUpperCase();
+  const cycleMatch = cycleUpper.match(/^C([1-6])$/);
+  if (!cycleMatch) {
+    return {
+      success: false,
+      error: "INVALID_CYCLE",
+      message: `Invalid cycle "${cycle}". Valid cycles are C1-C6.`,
+    };
+  }
+
+  const baselineLabelKey = `2026Q1-${cycleUpper}`;
+  const baselineLabelId = labelIds[baselineLabelKey];
+
+  if (!baselineLabelId) {
+    return {
+      success: false,
+      error: "MISSING_CYCLE_LABEL",
+      message: `Cycle label "${baselineLabelKey}" not found in config/label_ids.json`,
+    };
+  }
+
+  const client = getClient();
+  const now = new Date();
+  const dels = [];
+
+  // Filter pods if requested
+  let podsToProcess = Object.entries(podsConfig.pods);
+  if (podNameFilter) {
+    const filterLower = podNameFilter.toLowerCase();
+    podsToProcess = podsToProcess.filter(([name]) => name.toLowerCase() === filterLower);
+    if (podsToProcess.length === 0) {
+      return {
+        success: false,
+        error: "POD_NOT_FOUND",
+        message: `Pod "${podNameFilter}" not found.`,
+        availablePods: Object.keys(podsConfig.pods),
+      };
+    }
+  }
+
+  for (const [podName, pod] of podsToProcess) {
+    const teamId = pod.teamId;
+    if (!teamId) continue;
+
+    // Fetch DEL issues for this team (with caching)
+    let issues = [];
+    try {
+      const cacheKey = `del_issues_${teamId}`;
+      issues = await withCache(cacheKey, async () => {
+        return await fetchDELIssues(client, teamId, delLabelId);
+      }, CACHE_TTL.issues)();
+    } catch (e) {
+      continue;
+    }
+
+    // Enrich issues with label sets
+    const enriched = issues.map(it => {
+      const labels = (it.labels?.nodes || []).map(x => ({ id: x.id, name: x.name }));
+      const labelSet = new Set(labels.map(x => x.id));
+      const labelNames = labels.map(x => x.name);
+      return { ...it, _labels: labels, _labelSet: labelSet, _labelNames: labelNames };
+    });
+
+    // Find DELs committed to the specified cycle
+    for (const it of enriched) {
+      // Skip cancelled
+      if (cancelledLabelId && it._labelSet.has(cancelledLabelId)) continue;
+
+      // Check if committed to the specified cycle
+      const isCommitted = it._labelSet.has(baselineLabelId);
+      if (!isCommitted) continue;
+
+      // Check completion status
+      const isCompleted = it.state?.type === "completed";
+
+      dels.push({
+        pod: podName,
+        cycle: cycleUpper,
+        identifier: it.identifier,
+        title: extractTitle(it),
+        state: it.state?.name || "Unknown",
+        stateType: it.state?.type || "unknown",
+        isCompleted,
+        assignee: it.assignee?.name || "Unassigned",
+        project: it.project?.name || "No Project",
+        labels: it._labelNames.filter(n => !n.startsWith("2026Q1-") && n !== "DEL"),
+        createdAt: it.createdAt,
+        completedAt: it.completedAt,
+      });
+    }
+  }
+
+  // Sort by pod, then by identifier
+  dels.sort((a, b) => {
+    if (a.pod !== b.pod) return a.pod.localeCompare(b.pod);
+    return a.identifier.localeCompare(b.identifier);
+  });
+
+  // Calculate stats
+  const totalCommitted = dels.length;
+  const totalCompleted = dels.filter(d => d.isCompleted).length;
+  const totalPending = totalCommitted - totalCompleted;
+
+  return {
+    success: true,
+    dels,
+    cycle: cycleUpper,
+    totalCommitted,
+    totalCompleted,
+    totalPending,
+    deliveryPct: totalCommitted > 0 ? Math.round((totalCompleted / totalCommitted) * 100) : 0,
+    podFilter: podNameFilter,
+    fetchedAt: now.toISOString(),
+  };
+}
+
+/**
+ * Format DELs by cycle for display
+ */
+function formatDELsByCycle(result) {
+  if (!result.success) {
+    let msg = `Error: ${result.error}\n${result.message}`;
+    if (result.availablePods) {
+      msg += `\nAvailable pods: ${result.availablePods.join(", ")}`;
+    }
+    return msg;
+  }
+
+  const { dels, cycle, totalCommitted, totalCompleted, totalPending, deliveryPct, podFilter, fetchedAt } = result;
+
+  if (totalCommitted === 0) {
+    const podMsg = podFilter ? ` for ${podFilter}` : " across all pods";
+    return `No DELs committed to cycle ${cycle}${podMsg}.\n\nSnapshot: ${fetchedAt}`;
+  }
+
+  let out = "";
+  const podMsg = podFilter ? `${podFilter}` : "All Pods";
+  out += `## DELs in Cycle ${cycle} - ${podMsg}\n\n`;
+  out += `Summary: ${totalCommitted} committed, ${totalCompleted} completed, ${totalPending} pending (${deliveryPct}% delivery)\n\n`;
+
+  // Group by pod
+  const byPod = {};
+  for (const del of dels) {
+    if (!byPod[del.pod]) byPod[del.pod] = [];
+    byPod[del.pod].push(del);
+  }
+
+  // Format each pod's DELs
+  for (const [podName, podDels] of Object.entries(byPod)) {
+    const completed = podDels.filter(d => d.isCompleted).length;
+    const pending = podDels.length - completed;
+
+    out += `### ${podName} (${podDels.length} DELs: ${completed} done, ${pending} pending)\n\n`;
+    out += `| ID | Title | State | Assignee |\n`;
+    out += `|----|-------|-------|----------|\n`;
+
+    for (const del of podDels) {
+      const status = del.isCompleted ? "Done" : del.state;
+      const title = del.title.length > 40 ? del.title.substring(0, 37) + "..." : del.title;
+      out += `| ${del.identifier} | ${title} | ${status} | ${del.assignee} |\n`;
+    }
+    out += "\n";
+  }
+
+  out += `Snapshot: ${fetchedAt}`;
+  return out;
+}
+
+/**
  * Fetch pending (committed but not completed) DELs for a pod or all pods
  * @param {string|null} podNameFilter - Optional pod name to filter by
  * @returns {object} - { success, pendingDELs: [...], fetchedAt, ... }
@@ -883,7 +1102,9 @@ module.exports = {
   computeFeatureMovement,
   computeCombinedKpi,
   fetchPendingDELs,
+  fetchDELsByCycle,
   formatPendingDELs,
+  formatDELsByCycle,
   formatWeeklyKpiOutput,
   formatCombinedKpiOutput,
   formatCycleKpiTable,

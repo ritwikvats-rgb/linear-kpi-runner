@@ -4,12 +4,14 @@
   "dependencies": {
     "better-sqlite3": "^12.6.0",
     "dotenv": "^17.2.3",
+    "express": "^4.22.1",
     "undici": "^7.18.2"
   },
   "scripts": {
     "snapshot": "node -r dotenv/config scripts/generateSnapshot.js dotenv_config_path=.env",
     "debug:snapshot": "node -r dotenv/config scripts/generateSnapshot.js dotenv_config_path=.env --debug",
-    "agent": "node -r dotenv/config agent/src/index.js dotenv_config_path=.env"
+    "agent": "node -r dotenv/config agent/src/index.js dotenv_config_path=.env",
+    "start": "node -r dotenv/config agent/src/server.js dotenv_config_path=.env",
+    "kpi": "node -r dotenv/config agent/src/server.js dotenv_config_path=.env"
   }
 }
-

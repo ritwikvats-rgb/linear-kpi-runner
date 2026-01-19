@@ -20,7 +20,9 @@ const {
   computeWeeklyKpi,
   computeCombinedKpi,
   fetchPendingDELs,
+  fetchDELsByCycle,
   formatPendingDELs,
+  formatDELsByCycle,
   formatWeeklyKpiOutput,
   formatCombinedKpiOutput,
   generateInsights,
@@ -269,8 +271,8 @@ function extractPodFromQuery(input) {
   // Check each known pod name
   for (const pod of POD_NAMES) {
     if (lower.includes(pod)) {
-      // Map aliases
-      if (pod === "growth and reuse" || pod === "gr") return "Growth & Reuse";
+      // Map aliases to canonical pod names
+      if (pod === "growth & reuse" || pod === "growth and reuse" || pod === "gr") return "Growth & Reuse";
       if (pod === "fts") return "FTS";
       if (pod === "gts") return "GTS";
       if (pod === "platform") return "Platform";
@@ -410,6 +412,25 @@ function parseCommand(input) {
     }
   }
 
+  // DEL-specific queries - DELs planned/committed in a specific cycle
+  // Match queries like: "what DELs are planned in cycle C1", "DELs in C1 for FTS", "what and DELs planned in cycle C1"
+  const delCyclePatterns = [
+    /(?:what(?:'s|s| is| are| and)?|whats?|and) (?:the )?dels? (?:are )?(?:planned|committed|scheduled|in) (?:for |in )?(?:cycle )?c([1-6])/i,
+    /dels? (?:planned|committed|scheduled|in) (?:for |in )?(?:cycle )?c([1-6])/i,
+    /(?:show|list|get|display) (?:the )?dels? (?:for |in )?(?:cycle )?c([1-6])/i,
+    /(?:cycle )?c([1-6]) dels?/i,
+    /dels? (?:for |in )?c([1-6])/i,
+  ];
+
+  for (const pattern of delCyclePatterns) {
+    const match = lower.match(pattern);
+    if (match && match[1]) {
+      const cycle = `C${match[1]}`;
+      const podName = extractPodFromQuery(lower);
+      return { type: "dels_by_cycle", cycle, podName };
+    }
+  }
+
   // DEL-specific queries - pending/incomplete DELs
   // Match queries like: "in fts whats DELs are pending", "what are the pending dels", "show pending dels for fts"
   const delQueryPatterns = [
@@ -450,10 +471,12 @@ function parseCommand(input) {
   // KPI queries - detect various ways users ask for KPI (shows both tables)
   const kpiPatterns = [
     /^(?:what(?:'s|s| is) )?(?:the )?(?:weekly )?kpi/i,
+    /^(?:what(?:'s|s| is) )?(?:this week(?:'s)? )?kpi/i,
     /^(?:show\s+(?:me\s+)?)?kpi\s+(?:tables?|report|snapshot)/i,
     /^pod kpi/i,
     /^weekly (?:kpi|report|snapshot)/i,
     /^kpi (?:for )?(?:this )?week/i,
+    /^(?:this )?week(?:'s)? kpi/i,
     /^(?:show|get|display)\s+(?:me\s+)?(?:the )?(?:weekly )?kpi/i,
     /^(?:how are we doing|team status|sprint status)/i,
   ];
@@ -582,16 +605,28 @@ async function generateAllPodsSummary() {
   let out = "";
 
   // ============== TABLE A: Feature Movement (Beautified Box) ==============
-  out += formatFeatureMovementBox(fmRows, {
-    title: "A) How are our planned features moving? (Weekly Snapshot)"
-  });
+  if (fmRows.length > 0) {
+    out += formatFeatureMovementBox(fmRows, {
+      title: "A) Feature Movement (Weekly Snapshot)"
+    });
+  } else if (result.featureError) {
+    out += `A) Feature Movement: ${result.featureError}\n`;
+  } else {
+    out += "A) Feature Movement: No data available\n";
+  }
 
   out += "\n";
 
   // ============== TABLE B: DEL KPI (Beautified Box) ==============
-  out += formatDelKpiBox(cycleRows, cycle, {
-    title: `B) Pod-wise Cycle KPI (Cycle=${cycle})`
-  });
+  if (cycleRows.length > 0) {
+    out += formatDelKpiBox(cycleRows, cycle, {
+      title: `B) DEL KPI (Cycle=${cycle})`
+    });
+  } else if (result.delError) {
+    out += `B) DEL KPI: ${result.delError}\n`;
+  } else {
+    out += `B) DEL KPI: No data for cycle ${cycle}\n`;
+  }
 
   out += "\n";
 
@@ -604,7 +639,7 @@ async function generateAllPodsSummary() {
   // Feature movement insights
   const activePods = fmRows.filter(r => r.inFlight > 0);
   if (activePods.length > 0) {
-    summaryParts.push(`${activePods.length} pods have active work in flight`);
+    summaryParts.push(`${activePods.length} pod${activePods.length > 1 ? "s" : ""} have active work in flight`);
   }
 
   const completedPods = fmRows.filter(r => r.done > 0 && r.done === r.plannedFeatures);
@@ -614,7 +649,7 @@ async function generateAllPodsSummary() {
 
   const zeroPods = fmRows.filter(r => r.plannedFeatures === 0);
   if (zeroPods.length > 0) {
-    summaryParts.push(`${zeroPods.map(r => r.pod).join(", ")} ${zeroPods.length === 1 ? "has" : "have"} no projects mapped to their initiative yet`);
+    summaryParts.push(`${zeroPods.map(r => r.pod).join(", ")} ${zeroPods.length === 1 ? "has" : "have"} no projects mapped`);
   }
 
   // DEL insights
@@ -625,13 +660,13 @@ async function generateAllPodsSummary() {
 
   const spilloverPods = cycleRows.filter(r => r.spillover > 0);
   if (spilloverPods.length > 0) {
-    summaryParts.push(`spillover in ${spilloverPods.map(r => `${r.pod} (${r.spillover})`).join(", ")}`);
+    summaryParts.push(`Spillover: ${spilloverPods.map(r => `${r.pod} (${r.spillover})`).join(", ")}`);
   }
 
   if (summaryParts.length > 0) {
     out += summaryParts.join(". ") + ".\n";
   } else {
-    out += "All pods are progressing on their planned work. No blockers detected at the pod level.\n";
+    out += "All pods progressing normally.\n";
   }
 
   out += `\nSnapshot: ${result.fetchedAt}`;
@@ -791,6 +826,12 @@ async function answer(question, snapshot) {
       // Fetch and display pending (committed but not completed) DELs
       const result = await fetchPendingDELs(cmd.podName);
       return formatPendingDELs(result);
+    }
+
+    case "dels_by_cycle": {
+      // Fetch and display DELs committed to a specific cycle
+      const result = await fetchDELsByCycle(cmd.cycle, cmd.podName);
+      return formatDELsByCycle(result);
     }
 
     case "pod_narrative": {

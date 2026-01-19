@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KPI Assistant</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: #f5f5f5;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #1a1a2e;
+      color: white;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    header h1 {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    header .status {
+      font-size: 12px;
+      color: #4ade80;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    header .status::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      background: #4ade80;
+      border-radius: 50%;
+    }
+
+    .chat-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .message {
+      max-width: 85%;
+      padding: 16px 20px;
+      border-radius: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      font-size: 14px;
+    }
+
+    .message.assistant {
+      background: white;
+      border: 1px solid #e5e5e5;
+      align-self: flex-start;
+      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+      font-size: 13px;
+    }
+
+    .message.user {
+      background: #1a1a2e;
+      color: white;
+      align-self: flex-end;
+    }
+
+    .message.loading {
+      color: #666;
+      font-style: italic;
+    }
+
+    .message h2, .message h3 {
+      margin: 16px 0 8px 0;
+      font-size: 14px;
+    }
+
+    .message h2:first-child, .message h3:first-child {
+      margin-top: 0;
+    }
+
+    .quick-actions {
+      padding: 12px 24px;
+      background: white;
+      border-top: 1px solid #e5e5e5;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .quick-btn {
+      padding: 8px 16px;
+      border: 1px solid #ddd;
+      border-radius: 20px;
+      background: white;
+      cursor: pointer;
+      font-size: 13px;
+      color: #333;
+      transition: all 0.2s;
+    }
+
+    .quick-btn:hover {
+      background: #f0f0f0;
+      border-color: #1a1a2e;
+    }
+
+    .input-area {
+      padding: 16px 24px;
+      background: white;
+      border-top: 1px solid #e5e5e5;
+      display: flex;
+      gap: 12px;
+    }
+
+    #questionInput {
+      flex: 1;
+      padding: 14px 18px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    #questionInput:focus {
+      border-color: #1a1a2e;
+    }
+
+    #askBtn {
+      padding: 14px 28px;
+      background: #1a1a2e;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #askBtn:hover {
+      background: #2d2d44;
+    }
+
+    #askBtn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .greeting {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 24px;
+      border-radius: 12px;
+      margin-bottom: 8px;
+    }
+
+    .greeting h2 {
+      margin-bottom: 8px;
+    }
+
+    .greeting p {
+      opacity: 0.9;
+      font-size: 14px;
+    }
+
+    /* Table styling for KPI output */
+    .message table {
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 12px;
+    }
+
+    .message th, .message td {
+      border: 1px solid #ddd;
+      padding: 6px 10px;
+      text-align: left;
+    }
+
+    .message th {
+      background: #f5f5f5;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>KPI Assistant</h1>
+    <span class="status">Live Data</span>
+  </header>
+
+  <div class="chat-container" id="chat">
+    <div class="greeting">
+      <h2>Welcome!</h2>
+      <p>I'm your KPI assistant. Ask me about pod status, DEL metrics, or project updates. All answers come directly from your Linear data.</p>
+    </div>
+  </div>
+
+  <div class="quick-actions">
+    <button class="quick-btn" onclick="ask('What\\'s going on across all pods?')">All Pods Summary</button>
+    <button class="quick-btn" onclick="ask('What\\'s going on in FTS?')">FTS Status</button>
+    <button class="quick-btn" onclick="ask('Show DELs in cycle C1')">C1 DELs</button>
+    <button class="quick-btn" onclick="ask('Show pending DELs')">Pending DELs</button>
+    <button class="quick-btn" onclick="ask('pods')">List Pods</button>
+  </div>
+
+  <div class="input-area">
+    <input type="text" id="questionInput" placeholder="Ask a question... (e.g., What's the status of Platform?)" onkeypress="handleKeyPress(event)">
+    <button id="askBtn" onclick="askQuestion()">Ask</button>
+  </div>
+
+  <script>
+    const chat = document.getElementById('chat');
+    const input = document.getElementById('questionInput');
+    const btn = document.getElementById('askBtn');
+
+    function addMessage(text, type) {
+      const msg = document.createElement('div');
+      msg.className = `message ${type}`;
+      msg.textContent = text;
+      chat.appendChild(msg);
+      chat.scrollTop = chat.scrollHeight;
+      return msg;
+    }
+
+    function ask(question) {
+      input.value = question;
+      askQuestion();
+    }
+
+    function handleKeyPress(e) {
+      if (e.key === 'Enter') askQuestion();
+    }
+
+    async function askQuestion() {
+      const question = input.value.trim();
+      if (!question) return;
+
+      // Add user message
+      addMessage(question, 'user');
+      input.value = '';
+      btn.disabled = true;
+
+      // Add loading message
+      const loadingMsg = addMessage('Fetching data from Linear...', 'assistant loading');
+
+      try {
+        const res = await fetch('/api/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question })
+        });
+
+        const data = await res.json();
+
+        // Remove loading message
+        loadingMsg.remove();
+
+        if (data.success) {
+          addMessage(data.answer, 'assistant');
+        } else {
+          addMessage(`Error: ${data.message || 'Something went wrong'}`, 'assistant');
+        }
+      } catch (err) {
+        loadingMsg.remove();
+        addMessage(`Error: Could not reach the server. Is it running?`, 'assistant');
+      }
+
+      btn.disabled = false;
+      input.focus();
+    }
+
+    // Focus input on load
+    input.focus();
+  </script>
+</body>
+</html>
