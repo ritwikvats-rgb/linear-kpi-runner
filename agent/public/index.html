@@ -120,6 +120,18 @@
       border-color: #1a1a2e;
     }
 
+    .action-label {
+      font-size: 12px;
+      color: #666;
+      font-weight: 500;
+      margin-right: 4px;
+    }
+
+    .pod-actions {
+      border-top: none;
+      padding-top: 0;
+    }
+
     .input-area {
       padding: 16px 24px;
       background: white;
@@ -212,11 +224,20 @@
   </div>
 
   <div class="quick-actions">
-    <button class="quick-btn" onclick="ask('What\\'s going on across all pods?')">All Pods Summary</button>
-    <button class="quick-btn" onclick="ask('What\\'s going on in FTS?')">FTS Status</button>
-    <button class="quick-btn" onclick="ask('Show DELs in cycle C1')">C1 DELs</button>
-    <button class="quick-btn" onclick="ask('Show pending DELs')">Pending DELs</button>
-    <button class="quick-btn" onclick="ask('pods')">List Pods</button>
+    <span class="action-label">Quick:</span>
+    <button class="quick-btn" data-question="What is going on across all pods?">All Pods</button>
+    <button class="quick-btn" data-question="Show DELs in cycle C1">C1 DELs</button>
+    <button class="quick-btn" data-question="Show pending DELs">Pending DELs</button>
+  </div>
+
+  <div class="quick-actions pod-actions">
+    <span class="action-label">Pods:</span>
+    <button class="quick-btn" data-question="What is the status of FTS?">FTS</button>
+    <button class="quick-btn" data-question="What is the status of GTS?">GTS</button>
+    <button class="quick-btn" data-question="What is the status of Control Center?">Control Center</button>
+    <button class="quick-btn" data-question="What is the status of Talent Studio?">Talent Studio</button>
+    <button class="quick-btn" data-question="What is the status of Platform?">Platform</button>
+    <button class="quick-btn" data-question="What is the status of Growth and Reuse?">Growth & Reuse</button>
   </div>
 
   <div class="input-area">
@@ -242,6 +263,13 @@
       input.value = question;
       askQuestion();
     }
+
+    // Handle quick action button clicks
+    document.querySelectorAll('.quick-btn[data-question]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        ask(btn.dataset.question);
+      });
+    });
 
     function handleKeyPress(e) {
       if (e.key === 'Enter') askQuestion();
