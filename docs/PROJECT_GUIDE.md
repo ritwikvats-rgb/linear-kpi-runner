@@ -175,12 +175,12 @@ Before diving deeper, let's define the key terms used throughout this project.
 
 In this system, a **Pod** is a team with its associated initiative. We have 6 pods:
 
-1. **FTS** - Feature Team Services
-2. **GTS** - Global Team Services
-3. **Control Center** - Operations management
-4. **Talent Studio** - HR/Talent features
-5. **Platform** - Core infrastructure
-6. **Growth & Reuse** - Growth initiatives
+1. **FTS**
+2. **GTS**
+3. **Control Center**
+4. **Talent Studio**
+5. **Platform**
+6. **Growth & Reuse**
 
 Each pod has:
 - A **Team ID** - Linear's unique identifier for the team
