@@ -7,10 +7,11 @@
 4. [Data Flow](#data-flow)
 5. [Core Modules](#core-modules)
 6. [KPI Computation Logic](#kpi-computation-logic)
-7. [Caching Strategy](#caching-strategy)
-8. [Configuration Management](#configuration-management)
-9. [API Reference](#api-reference)
-10. [Database Schema](#database-schema)
+7. [Table Formatting System](#table-formatting-system)
+8. [Caching Strategy](#caching-strategy)
+9. [Configuration Management](#configuration-management)
+10. [API Reference](#api-reference)
+11. [Database Schema](#database-schema)
 
 ---
 
@@ -97,12 +98,12 @@ Linear KPI Runner is an intelligent CLI-based KPI tracking system for engineerin
              │ kpiStore │    │  answerer.js │  │  cache.js │
              └──────────┘    └───────┬──────┘  └───────────┘
                                      │
-              ┌──────────────────────┼──────────────────────┐
-              │                      │                      │
-              ▼                      ▼                      ▼
-       ┌─────────────┐       ┌─────────────┐        ┌──────────────┐
-       │ liveLinear  │       │ kpiComputer │        │ fuelixClient │
-       └──────┬──────┘       └──────┬──────┘        └──────────────┘
+              ┌──────────────────────┼──────────────────────┬─────────────────┐
+              │                      │                      │                 │
+              ▼                      ▼                      ▼                 ▼
+       ┌─────────────┐       ┌─────────────┐        ┌──────────────┐  ┌────────────────┐
+       │ liveLinear  │       │ kpiComputer │        │ fuelixClient │  │ tableFormatter │
+       └──────┬──────┘       └──────┬──────┘        └──────────────┘  └────────────────┘
               │                     │                       │
               │         ┌───────────┴───────────┐          │
               │         │                       │          │
@@ -203,9 +204,18 @@ Linear KPI Runner is an intelligent CLI-based KPI tracking system for engineerin
 │  ┌───────────────────────────────────┐  │
 │  │ parseCommand(input)               │  │
 │  │  → combined_kpi | weekly_kpi      │  │
+│  │  → all_pods_summary (cross-pod)   │  │
 │  │  → pod_summary | pod_projects     │  │
 │  │  → project_detail | blockers      │  │
 │  │  → project_comments | deep_dive   │  │
+│  │  → debug_mode | clear_cache       │  │
+│  └───────────────────────────────────┘  │
+├─────────────────────────────────────────┤
+│  POD/PROJECT DETECTION                   │
+│  ┌───────────────────────────────────┐  │
+│  │ isPodName() - Exact pod match     │  │
+│  │ extractPodFromQuery() - Find pod  │  │
+│  │ extractProjectFromNaturalLang()   │  │
 │  └───────────────────────────────────┘  │
 ├─────────────────────────────────────────┤
 │  ANSWER STRATEGIES                       │
@@ -215,12 +225,12 @@ Linear KPI Runner is an intelligent CLI-based KPI tracking system for engineerin
 │  │ 3. LLM fallback                   │  │
 │  └───────────────────────────────────┘  │
 ├─────────────────────────────────────────┤
-│  FORMATTERS                              │
+│  FORMATTERS (uses tableFormatter.js)    │
 │  ├─ formatPodSummary()                  │
-│  ├─ formatProjectList()                 │
+│  ├─ formatProjectList() → box tables    │
 │  ├─ formatProjectDetail()               │
-│  ├─ formatBlockers()                    │
-│  └─ formatPodsList()                    │
+│  ├─ formatBlockers() → box tables       │
+│  └─ formatPodsList() → box tables       │
 └─────────────────────────────────────────┘
 ```
 
@@ -240,12 +250,16 @@ Linear KPI Runner is an intelligent CLI-based KPI tracking system for engineerin
 │  │                                    │  │
 │  │ computeCombinedKpi()              │  │
 │  │  └─ Both + project summaries     │  │
+│  │                                    │  │
+│  │ fetchPendingDELs()                │  │
+│  │  └─ Get incomplete DELs by pod   │  │
 │  └───────────────────────────────────┘  │
 ├─────────────────────────────────────────┤
 │  FORMATTERS                              │
 │  ├─ formatCycleKpiTable()               │
 │  ├─ formatFeatureMovementTable()        │
 │  ├─ formatCombinedKpiOutput()           │
+│  ├─ formatPendingDELs()                 │
 │  └─ generateInsights()                  │
 ├─────────────────────────────────────────┤
 │  HELPERS                                 │
@@ -483,6 +497,88 @@ function getCycleKeyByDate(podCalendar, refDate = new Date()) {
 
 ---
 
+## Table Formatting System
+
+### Overview
+
+The `tableFormatter.js` module provides beautiful Unicode box-drawing tables for CLI output, replacing plain markdown tables with visually appealing, aligned tables.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────┐
+│         tableFormatter.js                │
+├─────────────────────────────────────────┤
+│  BOX DRAWING CHARACTERS                  │
+│  ┌───────────────────────────────────┐  │
+│  │ ┌ ┐ └ ┘ ─ │ ├ ┤ ┬ ┴ ┼            │  │
+│  │ topLeft, topRight, bottomLeft...  │  │
+│  └───────────────────────────────────┘  │
+├─────────────────────────────────────────┤
+│  CORE FORMATTER                          │
+│  ┌───────────────────────────────────┐  │
+│  │ formatTable(data, columns, opts)  │  │
+│  │  - Auto column width calculation  │  │
+│  │  - Left/Right/Center alignment    │  │
+│  │  - Optional title & totals row    │  │
+│  └───────────────────────────────────┘  │
+├─────────────────────────────────────────┤
+│  SPECIALIZED FORMATTERS                  │
+│  ├─ formatFeatureMovementBox()          │
+│  │   └─ Pod feature state table         │
+│  ├─ formatDelKpiBox()                   │
+│  │   └─ DEL KPI metrics table           │
+│  ├─ formatPendingDelsBox()              │
+│  │   └─ Pending DEL issues table        │
+│  ├─ formatProjectsBox()                 │
+│  │   └─ Project list table              │
+│  ├─ formatBlockersBox()                 │
+│  │   └─ Blocker issues table            │
+│  ├─ formatPodsListBox()                 │
+│  │   └─ Available pods table            │
+│  └─ formatSummaryBox()                  │
+│      └─ Simple summary box              │
+├─────────────────────────────────────────┤
+│  UTILITIES                               │
+│  ├─ padCell(value, width, align)        │
+│  └─ truncate(str, maxLen)               │
+└─────────────────────────────────────────┘
+```
+
+### Example Output
+
+```
+Feature Movement (Weekly Snapshot)
+
+┌──────────────────┬──────────┬────────┬────────────┬──────────────┐
+│ Pod              │  Planned │   Done │  In-Flight │  Not Started │
+├──────────────────┼──────────┼────────┼────────────┼──────────────┤
+│ FTS              │        8 │      2 │          4 │            2 │
+│ GTS              │        5 │      1 │          3 │            1 │
+│ Platform         │        6 │      3 │          2 │            1 │
+├──────────────────┼──────────┼────────┼────────────┼──────────────┤
+│ TOTAL            │       19 │      6 │          9 │            4 │
+└──────────────────┴──────────┴────────┴────────────┴──────────────┘
+```
+
+### Usage
+
+```javascript
+const { formatFeatureMovementBox, formatDelKpiBox } = require("./tableFormatter");
+
+// Feature Movement table
+const fmOutput = formatFeatureMovementBox(podRows, {
+  title: "A) Feature Movement (Weekly Snapshot)"
+});
+
+// DEL KPI table
+const delOutput = formatDelKpiBox(delRows, "C2", {
+  title: "B) DEL KPI (Cycle=C2)"
+});
+```
+
+---
+
 ## Caching Strategy
 
 ### Cache Architecture
@@ -681,12 +777,16 @@ query ProjectsByInitiative($initiativeId: ID!, $first: Int!, $after: String) {
 |---------|-------------|---------|
 | `kpi` | Combined DEL + Feature Movement | `combined_kpi` |
 | `weekly kpi` | Same as `kpi` | `combined_kpi` |
+| `what's going on across all pods` | Cross-pod summary | `all_pods_summary` |
+| `what's happening this week` | Cross-pod summary | `all_pods_summary` |
 | `pods` | List all pods | `list_pods` |
 | `pod <name>` | Pod summary | `pod_summary` |
 | `pod <name> projects` | List pod projects | `pod_projects` |
 | `project <name>` | Project details | `project_detail` |
 | `project <name> blockers` | Show blockers | `project_blockers` |
 | `project <name> comments` | Comment summary | `project_comments` |
+| `debug` | Toggle debug mode | `debug_mode` |
+| `clear cache` | Clear API cache | `clear_cache` |
 | `/refresh` | Regenerate snapshot | Internal |
 | `/help` | Show help | Internal |
 
@@ -823,5 +923,8 @@ This system provides a comprehensive KPI tracking solution with:
 4. **Dual KPI System**: DEL metrics + Feature Movement tracking
 5. **Cross-Pod Search**: Fuzzy project matching across all pods
 6. **LLM Fallback**: Natural language understanding for complex queries
+7. **Beautiful CLI Output**: Unicode box-drawing tables via `tableFormatter.js`
+8. **Cross-Pod Summaries**: "What's happening across all pods" queries
+9. **Pending DEL Tracking**: View incomplete deliverables by pod
 
 The architecture follows a layered approach with clear separation between CLI, business logic, data access, and external services.

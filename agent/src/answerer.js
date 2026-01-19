@@ -19,10 +19,20 @@ const {
 const {
   computeWeeklyKpi,
   computeCombinedKpi,
+  fetchPendingDELs,
+  formatPendingDELs,
   formatWeeklyKpiOutput,
   formatCombinedKpiOutput,
   generateInsights,
 } = require("./kpiComputer");
+const {
+  formatFeatureMovementBox,
+  formatDelKpiBox,
+  formatProjectsBox,
+  formatBlockersBox,
+  formatPodsListBox,
+  formatSummaryBox,
+} = require("./tableFormatter");
 
 // ============== SNAPSHOT-BASED FUNCTIONS (existing) ==============
 
@@ -136,19 +146,15 @@ function formatProjectList(result) {
 
   const { pod, projectCount, stats, projects, fetchedAt } = result;
 
-  let output = `## ${pod} - Projects (${projectCount} total)\n\n`;
+  let output = `## ${pod} - Projects\n\n`;
 
-  // Stats
-  output += `**Status breakdown:** Done=${stats.done}, In-Flight=${stats.in_flight}, Not Started=${stats.not_started}\n\n`;
+  // Stats summary
+  output += `Status breakdown: Done=${stats.done}, In-Flight=${stats.in_flight}, Not Started=${stats.not_started}\n\n`;
 
-  // Project list
-  output += `| Project | State | Lead | Updated |\n`;
-  output += `|---------|-------|------|--------|\n`;
-
-  for (const p of projects) {
-    const updated = p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : "-";
-    output += `| ${p.name.substring(0, 40)}${p.name.length > 40 ? "..." : ""} | ${p.normalizedState} | ${p.lead || "-"} | ${updated} |\n`;
-  }
+  // Beautified project list
+  output += formatProjectsBox(projects, pod, {
+    title: `${pod} Projects (${projectCount} total)`
+  });
 
   output += `\n*Source: LIVE from Linear (${fetchedAt})*`;
   return output;
@@ -210,18 +216,17 @@ function formatBlockers(result) {
   const { pod, project, projectUrl, blockerCount, blockers, fetchedAt } = result;
 
   let output = `## Blockers for ${project}\n\n`;
-  output += `**Pod:** ${pod}\n`;
-  output += `**Total Blockers:** ${blockerCount}\n`;
-  if (projectUrl) output += `**Project URL:** ${projectUrl}\n`;
+  output += `Pod: ${pod}\n`;
+  output += `Total Blockers: ${blockerCount}\n`;
+  if (projectUrl) output += `Project URL: ${projectUrl}\n`;
 
   if (blockers.length === 0) {
     output += `\nNo blockers found for this project.\n`;
   } else {
-    output += `\n| Issue | Title | Reason | Assignee | Priority |\n`;
-    output += `|-------|-------|--------|----------|----------|\n`;
-    for (const b of blockers) {
-      output += `| ${b.identifier} | ${b.title.substring(0, 30)}${b.title.length > 30 ? "..." : ""} | ${b.reason} | ${b.assignee || "-"} | ${b.priority ?? "-"} |\n`;
-    }
+    output += `\n`;
+    output += formatBlockersBox(blockers, project, {
+      title: `Blockers (${blockerCount} total)`
+    });
   }
 
   output += `\n*Source: LIVE from Linear (${fetchedAt})*`;
@@ -230,28 +235,70 @@ function formatBlockers(result) {
 
 function formatPodsList(result) {
   let output = `## Available Pods\n\n`;
-  output += `**Source:** ${result.source}\n`;
-  if (result.org) output += `**Organization:** ${result.org}\n`;
-  output += `**Count:** ${result.podCount}\n\n`;
+  output += `Source: ${result.source}\n`;
+  if (result.org) output += `Organization: ${result.org}\n`;
+  output += `\n`;
 
-  output += `| Pod | Team ID | Initiative ID |\n`;
-  output += `|-----|---------|---------------|\n`;
-  for (const p of result.pods) {
-    output += `| ${p.name} | ${p.teamId} | ${p.initiativeId} |\n`;
-  }
+  output += formatPodsListBox(result.pods, {
+    title: `Pods (${result.podCount} total)`
+  });
 
   return output;
 }
 
 // ============== COMMAND PARSING ==============
 
+// Known pod names for detection
+const POD_NAMES = ["fts", "gts", "platform", "control center", "talent studio", "growth & reuse", "growth and reuse", "gr"];
+
+/**
+ * Check if a string is EXACTLY a pod name (not a project name within a pod)
+ */
+function isPodName(str) {
+  const s = String(str || "").toLowerCase().trim();
+  // Only match exact pod names, not "fts evals" or "platform roadmap"
+  return POD_NAMES.some(p => p === s || s === p.replace("&", "and"));
+}
+
+/**
+ * Extract pod name if the query is asking about a specific pod
+ */
+function extractPodFromQuery(input) {
+  const lower = input.toLowerCase();
+
+  // Check each known pod name
+  for (const pod of POD_NAMES) {
+    if (lower.includes(pod)) {
+      // Map aliases
+      if (pod === "growth and reuse" || pod === "gr") return "Growth & Reuse";
+      if (pod === "fts") return "FTS";
+      if (pod === "gts") return "GTS";
+      if (pod === "platform") return "Platform";
+      if (pod === "control center") return "Control Center";
+      if (pod === "talent studio") return "Talent Studio";
+      return pod;
+    }
+  }
+  return null;
+}
+
 /**
  * Extract project name from natural language queries like:
  * - "what's going on in FTS Evals manual actions replacements"
  * - "status of Data-Driven Cohorts"
  * - "update on tagging project"
+ *
+ * Returns null if the query is about a pod (not a project)
  */
 function extractProjectFromNaturalLanguage(input) {
+  // First check if this is an "all pods" or general KPI query
+  const lower = input.toLowerCase();
+  if (lower.includes("all pods") || lower.includes("across pods") ||
+      lower.includes("all teams") || lower.includes("this week") ||
+      lower.includes("kpi")) {
+    return null; // Not a project query
+  }
+
   // Patterns that indicate a project-specific query
   const patterns = [
     /what(?:'s|s| is) (?:going on|happening) (?:in|with|on) (.+?)(?:\?|$)/i,
@@ -267,8 +314,14 @@ function extractProjectFromNaturalLanguage(input) {
       let projectName = match[1].trim();
       // Remove common suffixes like "project"
       projectName = projectName.replace(/\s+project$/i, "").trim();
-      // Skip if it's just a pod name (too short or common pod names)
-      if (projectName.length > 3 && !["fts", "gts", "pod"].includes(projectName.toLowerCase())) {
+
+      // Check if it's just a pod name - if so, return null (it's a pod query)
+      if (isPodName(projectName)) {
+        return null;
+      }
+
+      // Must have meaningful length to be a project name
+      if (projectName.length > 3) {
         return projectName;
       }
     }
@@ -300,6 +353,48 @@ function parseCommand(input) {
     return { type: "clear_cache" };
   }
 
+  // "debug" mode toggle
+  if (lower === "debug" || lower === "debug mode" || lower === "debug on") {
+    return { type: "debug_mode" };
+  }
+
+  // ALL PODS / CROSS-POD queries - these should return combined KPI tables
+  const allPodsPatterns = [
+    /what(?:'s|s| is) (?:going on|happening) (?:across|in|with) (?:all )?pods/i,
+    /what(?:'s|s| is) (?:going on|happening) (?:this week|today)/i,
+    /(?:show|get|give me) (?:the )?(?:all |cross.?)?pod(?:s)? (?:status|summary|kpi)/i,
+    /(?:status|summary) (?:of |for )?(?:all )?pods/i,
+    /(?:across|all) pods/i,
+    /(?:our )?kpis? this week/i,
+    /what are (?:the |our )?kpis?/i,
+    /how are (?:all )?(?:the )?pods (?:doing)?/i,
+    /team(?:s)? (?:status|summary)/i,
+  ];
+
+  for (const pattern of allPodsPatterns) {
+    if (pattern.test(lower)) {
+      return { type: "all_pods_summary" };
+    }
+  }
+
+  // POD-SPECIFIC natural language queries - "what's going on in FTS?"
+  const podQueryPatterns = [
+    /what(?:'s|s| is) (?:going on|happening) (?:in|with|on) (fts|gts|platform|control center|talent studio|growth.{1,5}reuse|gr)\??$/i,
+    /(?:status|update|summary) (?:of|on|for) (fts|gts|platform|control center|talent studio|growth.{1,5}reuse|gr)\??$/i,
+    /(?:tell me about|show me) (fts|gts|platform|control center|talent studio|growth.{1,5}reuse|gr)\??$/i,
+    /how(?:'s| is) (fts|gts|platform|control center|talent studio|growth.{1,5}reuse|gr) (?:doing)?\??$/i,
+  ];
+
+  for (const pattern of podQueryPatterns) {
+    const match = lower.match(pattern);
+    if (match && match[1]) {
+      const podName = extractPodFromQuery(match[1]);
+      if (podName) {
+        return { type: "pod_narrative", podName };
+      }
+    }
+  }
+
   // Combined/Full KPI queries - both DEL and Weekly with project summaries
   const combinedKpiPatterns = [
     /^(?:full|combined|complete|all|both) (?:kpi|kpis)/i,
@@ -311,28 +406,62 @@ function parseCommand(input) {
 
   for (const pattern of combinedKpiPatterns) {
     if (pattern.test(lower)) {
-      return { type: "combined_kpi" };
+      return { type: "all_pods_summary" };
     }
   }
 
-  // KPI queries - detect various ways users ask for KPI
+  // DEL-specific queries - pending/incomplete DELs
+  // Match queries like: "in fts whats DELs are pending", "what are the pending dels", "show pending dels for fts"
+  const delQueryPatterns = [
+    /(?:what(?:'s|s| is| are)?|whats) (?:the )?(?:pending|incomplete|uncommitted|not completed|outstanding) dels?/i,
+    /(?:what(?:'s|s| is| are)?|whats) dels? (?:are )?(?:pending|incomplete|not done|not completed|outstanding)/i,
+    /dels? (?:that are |which are )?(?:pending|incomplete|not completed|outstanding)/i,
+    /(?:show|list|get|display) (?:the )?(?:pending|incomplete|outstanding) dels?/i,
+    /(?:which|what) dels? (?:are )?(?:pending|incomplete|not done|not completed)/i,
+    /pending dels?/i,
+    /(?:in |for )?\w+ (?:pending|incomplete) dels?/i,
+  ];
+
+  for (const pattern of delQueryPatterns) {
+    const match = lower.match(pattern);
+    if (match) {
+      // Check if pod name is specified
+      const podName = extractPodFromQuery(lower);
+      return { type: "pending_dels", podName };
+    }
+  }
+
+  // DEL-only KPI queries - show just the DEL metrics table
+  const delOnlyKpiPatterns = [
+    /^(?:show\s+(?:me\s+)?)?dels?\s+kpi/i,
+    /^dels?\s+kpi/i,
+    /^(?:show\s+(?:me\s+)?)?(?:the\s+)?del\s+(?:kpi|metrics|report|table)/i,
+    /^(?:what(?:'s|s| is| are)\s+)?(?:the\s+)?dels?\s+(?:kpi|metrics|status)/i,
+    /^cycle\s+kpi/i,
+    /^(?:get|display)\s+(?:the\s+)?dels?\s+(?:kpi|metrics)/i,
+  ];
+
+  for (const pattern of delOnlyKpiPatterns) {
+    if (pattern.test(lower)) {
+      return { type: "del_kpi" };
+    }
+  }
+
+  // KPI queries - detect various ways users ask for KPI (shows both tables)
   const kpiPatterns = [
     /^(?:what(?:'s|s| is) )?(?:the )?(?:weekly )?kpi/i,
-    /^(?:show )?kpi (?:tables?|report|snapshot)/i,
+    /^(?:show\s+(?:me\s+)?)?kpi\s+(?:tables?|report|snapshot)/i,
     /^pod kpi/i,
     /^weekly (?:kpi|report|snapshot)/i,
     /^kpi (?:for )?(?:this )?week/i,
-    /^(?:show|get|display) (?:the )?(?:weekly )?kpi/i,
-    /^del (?:kpi|metrics|report)/i,
-    /^cycle kpi/i,
-    /^(?:what(?:'s|s| is) )?(?:the )?del (?:status|progress|metrics)/i,
+    /^(?:show|get|display)\s+(?:me\s+)?(?:the )?(?:weekly )?kpi/i,
     /^(?:how are we doing|team status|sprint status)/i,
   ];
 
   for (const pattern of kpiPatterns) {
     if (pattern.test(lower)) {
-      // Default to combined KPI for better user experience
-      return { type: "combined_kpi" };
+      // Default to all pods summary for better user experience
+      return { type: "all_pods_summary" };
     }
   }
 
@@ -382,15 +511,254 @@ function parseCommand(input) {
   return { type: "unknown", input: trimmed };
 }
 
+// ============== DEBUG & NARRATIVE FUNCTIONS ==============
+
+/**
+ * Format debug info for troubleshooting
+ */
+function formatDebugInfo() {
+  const { loadCycleCalendar, loadLabelIds } = require("./kpiComputer");
+  const config = require("./configLoader").loadConfig();
+
+  let out = "## Debug Information\n\n";
+
+  // Config source
+  out += `**Config Source:** ${config.source}\n`;
+  out += `**Organization:** ${config.org?.name || "N/A"}\n\n`;
+
+  // Pods
+  out += `### Configured Pods (${Object.keys(config.pods).length})\n\n`;
+  out += `| Pod | Team ID | Initiative ID | Projects |\n`;
+  out += `|-----|---------|---------------|----------|\n`;
+
+  for (const [name, data] of Object.entries(config.pods)) {
+    const teamId = data.teamId ? data.teamId.substring(0, 8) + "..." : "MISSING";
+    const initId = data.initiativeId ? data.initiativeId.substring(0, 8) + "..." : "MISSING";
+    const projects = data.projects?.length ?? "N/A";
+    out += `| ${name} | ${teamId} | ${initId} | ${projects} |\n`;
+  }
+
+  // Labels
+  const labelIds = loadLabelIds();
+  out += `\n### Label IDs\n`;
+  if (labelIds) {
+    out += `- DEL: ${labelIds.DEL ? "configured" : "MISSING"}\n`;
+    out += `- DEL-CANCELLED: ${labelIds["DEL-CANCELLED"] ? "configured" : "MISSING"}\n`;
+    for (let i = 1; i <= 6; i++) {
+      const key = `2026Q1-C${i}`;
+      out += `- ${key}: ${labelIds[key] ? "configured" : "MISSING"}\n`;
+    }
+  } else {
+    out += `Labels config not found. Run: node scripts/runWeeklyKpi.js\n`;
+  }
+
+  // Cycle calendar
+  const calendar = loadCycleCalendar();
+  out += `\n### Cycle Calendar\n`;
+  if (calendar) {
+    out += `Pods with calendar: ${Object.keys(calendar.pods || {}).join(", ")}\n`;
+  } else {
+    out += `Calendar not found.\n`;
+  }
+
+  return out;
+}
+
+/**
+ * Generate narrative summary for all pods (the two KPI tables + paragraph)
+ * This matches the weekly KPI runner output format with beautified box tables
+ */
+async function generateAllPodsSummary() {
+  const result = await computeCombinedKpi();
+
+  if (!result.success) {
+    return `Error: ${result.error}\n${result.message}`;
+  }
+
+  const cycle = result.fallbackCycle || result.currentCycle;
+  const cycleRows = result.cycleKpi.filter(r => r.cycle === cycle);
+  const fmRows = result.featureMovement || [];
+
+  let out = "";
+
+  // ============== TABLE A: Feature Movement (Beautified Box) ==============
+  out += formatFeatureMovementBox(fmRows, {
+    title: "A) How are our planned features moving? (Weekly Snapshot)"
+  });
+
+  out += "\n";
+
+  // ============== TABLE B: DEL KPI (Beautified Box) ==============
+  out += formatDelKpiBox(cycleRows, cycle, {
+    title: `B) Pod-wise Cycle KPI (Cycle=${cycle})`
+  });
+
+  out += "\n";
+
+  // ============== SUMMARY PARAGRAPH ==============
+  out += `--- Summary ---\n`;
+
+  // Build summary based on real data
+  const summaryParts = [];
+
+  // Feature movement insights
+  const activePods = fmRows.filter(r => r.inFlight > 0);
+  if (activePods.length > 0) {
+    summaryParts.push(`${activePods.length} pods have active work in flight`);
+  }
+
+  const completedPods = fmRows.filter(r => r.done > 0 && r.done === r.plannedFeatures);
+  if (completedPods.length > 0) {
+    summaryParts.push(`${completedPods.map(r => r.pod).join(", ")} ${completedPods.length === 1 ? "has" : "have"} completed all planned features`);
+  }
+
+  const zeroPods = fmRows.filter(r => r.plannedFeatures === 0);
+  if (zeroPods.length > 0) {
+    summaryParts.push(`${zeroPods.map(r => r.pod).join(", ")} ${zeroPods.length === 1 ? "has" : "have"} no projects mapped to their initiative yet`);
+  }
+
+  // DEL insights
+  const highDelivery = cycleRows.filter(r => parseInt(r.deliveryPct) >= 80 && r.committed > 0);
+  if (highDelivery.length > 0) {
+    summaryParts.push(`${highDelivery.map(r => r.pod).join(", ")} ${highDelivery.length === 1 ? "is" : "are"} at 80%+ delivery`);
+  }
+
+  const spilloverPods = cycleRows.filter(r => r.spillover > 0);
+  if (spilloverPods.length > 0) {
+    summaryParts.push(`spillover in ${spilloverPods.map(r => `${r.pod} (${r.spillover})`).join(", ")}`);
+  }
+
+  if (summaryParts.length > 0) {
+    out += summaryParts.join(". ") + ".\n";
+  } else {
+    out += "All pods are progressing on their planned work. No blockers detected at the pod level.\n";
+  }
+
+  out += `\nSnapshot: ${result.fetchedAt}`;
+
+  return out;
+}
+
+/**
+ * Generate narrative summary for a single pod
+ * Output format:
+ * a) One paragraph summary of what's happening NOW
+ * b) Short "What changed recently" bullet list (max 5)
+ * c) Blockers/Risks only if they exist
+ * d) Suggestions only if blockers/risks exist
+ */
+async function generatePodNarrative(podName) {
+  // Get live pod data
+  const projectsResult = await getLiveProjects(podName);
+
+  if (!projectsResult.success) {
+    let msg = `Could not fetch data for "${podName}": ${projectsResult.error}\n${projectsResult.message}`;
+    if (projectsResult.suggestion) {
+      msg += `\n\nDid you mean: ${projectsResult.suggestion}?`;
+    }
+    if (projectsResult.availablePods) {
+      msg += `\nAvailable pods: ${projectsResult.availablePods.join(", ")}`;
+    }
+    return msg;
+  }
+
+  const { pod, projectCount, stats, projects } = projectsResult;
+
+  // Get team issues for blockers
+  const summaryResult = await getLivePodSummary(podName);
+  const issueStats = summaryResult.success ? summaryResult.issueStats : { total: 0, active: 0, blockers: 0, risks: 0 };
+
+  let out = "";
+
+  // ============== (a) ONE PARAGRAPH SUMMARY ==============
+  out += `${pod} Summary\n`;
+  out += `${"=".repeat(pod.length + 8)}\n\n`;
+
+  // Build narrative paragraph
+  const narrativeParts = [];
+
+  // Project status
+  if (projectCount === 0) {
+    narrativeParts.push(`${pod} currently has no projects mapped to its Q1 2026 initiative`);
+  } else {
+    const statusParts = [];
+    if (stats.in_flight > 0) statusParts.push(`${stats.in_flight} in-flight`);
+    if (stats.done > 0) statusParts.push(`${stats.done} completed`);
+    if (stats.not_started > 0) statusParts.push(`${stats.not_started} not yet started`);
+
+    narrativeParts.push(`${pod} has ${projectCount} planned features for Q1 2026: ${statusParts.join(", ")}`);
+
+    // Highlight active projects
+    const inFlightProjects = projects.filter(p => p.normalizedState === "in_flight");
+    if (inFlightProjects.length > 0 && inFlightProjects.length <= 3) {
+      narrativeParts.push(`Currently active: ${inFlightProjects.map(p => p.name.replace(/^Q1 2026\s*:\s*/i, "")).join(", ")}`);
+    }
+  }
+
+  // Blocker status
+  if (issueStats.blockers > 0) {
+    narrativeParts.push(`There ${issueStats.blockers === 1 ? "is" : "are"} ${issueStats.blockers} blocker${issueStats.blockers === 1 ? "" : "s"} requiring attention`);
+  }
+
+  out += narrativeParts.join(". ") + ".\n\n";
+
+  // ============== (b) WHAT CHANGED RECENTLY ==============
+  out += `What changed recently:\n`;
+
+  // Get recently updated projects (sorted by updatedAt)
+  const recentProjects = [...projects]
+    .sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0))
+    .slice(0, 5);
+
+  if (recentProjects.length === 0) {
+    out += `- No recent project activity detected\n`;
+  } else {
+    for (const p of recentProjects) {
+      const shortName = p.name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
+      const updatedDate = p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : "unknown";
+      const stateText = p.normalizedState === "in_flight" ? "in progress" : p.normalizedState === "done" ? "completed" : "planned";
+      out += `- ${shortName} (${stateText}, updated ${updatedDate})\n`;
+    }
+  }
+
+  out += `\n`;
+
+  // ============== (c) BLOCKERS/RISKS ==============
+  if (issueStats.blockers > 0 || issueStats.risks > 0) {
+    out += `Blockers/Risks:\n`;
+    if (issueStats.blockers > 0) {
+      out += `- ${issueStats.blockers} blocker issue${issueStats.blockers === 1 ? "" : "s"} labeled in Linear\n`;
+    }
+    if (issueStats.risks > 0) {
+      out += `- ${issueStats.risks} risk item${issueStats.risks === 1 ? "" : "s"} flagged\n`;
+    }
+
+    // ============== (d) SUGGESTIONS ==============
+    out += `\nSuggestions:\n`;
+    if (issueStats.blockers > 0) {
+      out += `- Review blocker issues and assign owners if not already done\n`;
+      out += `- Consider escalating if blockers have been open for more than 2 days\n`;
+    }
+    if (issueStats.risks > 0) {
+      out += `- Evaluate risk items and determine mitigation strategies\n`;
+    }
+  } else {
+    out += `No actionable blockers detected.\n`;
+  }
+
+  out += `\n*Source: LIVE from Linear (${projectsResult.fetchedAt})*`;
+
+  return out;
+}
+
 // ============== MAIN ANSWER FUNCTION ==============
 
 /**
  * Answer a question using live data or snapshot
  * @param {string} question - User question
  * @param {object} snapshot - Snapshot data (optional, for fallback)
- * @param {object} options - Options { useLive: boolean }
  */
-async function answer(question, snapshot, options = {}) {
+async function answer(question, snapshot) {
   const cmd = parseCommand(question);
 
   // Handle explicit commands first
@@ -408,6 +776,51 @@ async function answer(question, snapshot, options = {}) {
     case "clear_cache": {
       clearCache();
       return "Cache cleared.";
+    }
+
+    case "debug_mode": {
+      return formatDebugInfo();
+    }
+
+    case "all_pods_summary": {
+      // Generate the two clean KPI tables + summary paragraph
+      return await generateAllPodsSummary();
+    }
+
+    case "pending_dels": {
+      // Fetch and display pending (committed but not completed) DELs
+      const result = await fetchPendingDELs(cmd.podName);
+      return formatPendingDELs(result);
+    }
+
+    case "pod_narrative": {
+      // Generate narrative summary for a single pod
+      return await generatePodNarrative(cmd.podName);
+    }
+
+    case "del_kpi": {
+      // Show ONLY the DEL KPI table (Committed vs Completed vs Delivery %)
+      const result = await computeWeeklyKpi();
+      if (!result.success) {
+        return `Error: ${result.error}\n${result.message}`;
+      }
+
+      const cycle = result.fallbackCycle || result.currentCycle;
+      const cycleRows = result.cycleKpi.filter(r => r.cycle === cycle);
+
+      let output = `## DEL KPI (Cycle ${cycle})\n\n`;
+      output += `DEL = Delivery Excellence Level - tracks committed vs completed deliverables\n\n`;
+      output += formatDelKpiBox(cycleRows, cycle, {
+        title: `DEL Metrics (Cycle=${cycle})`
+      });
+
+      // Add fallback note if applicable
+      if (result.fallbackCycle) {
+        output += `\n[Note: ${result.currentCycle} has 0 committed. Showing ${result.fallbackCycle} which has data.]\n`;
+      }
+
+      output += `\nSnapshot: ${result.fetchedAt}`;
+      return output;
     }
 
     case "weekly_kpi": {

@@ -74,7 +74,7 @@ function normalizeProjectState(state) {
   const s = String(state || "").toLowerCase();
   if (s === "completed") return "done";
   if (s === "started" || s === "paused") return "in_flight";
-  if (s === "planned") return "not_started";
+  if (s === "planned" || s === "backlog") return "not_started";
   if (s === "canceled") return "not_started"; // treat as not started (or make its own bucket)
   return "unknown";
 }

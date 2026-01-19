@@ -11,6 +11,11 @@ const fs = require("fs");
 const path = require("path");
 const { getClient, getConfig, normalizeState } = require("./liveLinear");
 const { withCache } = require("./cache");
+const {
+  formatFeatureMovementBox,
+  formatDelKpiBox,
+  formatPendingDelsBox,
+} = require("./tableFormatter");
 
 const REPO_ROOT = path.resolve(__dirname, "../..");
 const CACHE_TTL = {
@@ -141,10 +146,13 @@ query IssuesByTeamAndLabel($teamId: ID!, $labelId: ID!, $first: Int!, $after: St
     nodes {
       id
       identifier
+      title
       createdAt
       completedAt
       state { type name }
       labels { nodes { id name } }
+      assignee { id name }
+      project { id name }
     }
     pageInfo { hasNextPage endCursor }
   }
@@ -501,7 +509,7 @@ function formatFeatureMovementTable(rows) {
 }
 
 /**
- * Format complete KPI output (both tables)
+ * Format complete KPI output (both tables) with beautified box tables
  */
 function formatWeeklyKpiOutput(result) {
   if (!result.success) {
@@ -510,19 +518,26 @@ function formatWeeklyKpiOutput(result) {
 
   let out = `## Weekly KPI Report\n\n`;
 
-  // Cycle KPI table
-  out += formatCycleKpiTable(result.cycleKpi, result.currentCycle);
+  // Use the primary cycle
+  const cycle = result.fallbackCycle || result.currentCycle;
+  const cycleRows = result.cycleKpi.filter(r => r.cycle === cycle);
 
-  // Show fallback if current cycle has no data
+  // Beautified DEL KPI table
+  out += formatDelKpiBox(cycleRows, cycle, {
+    title: `A) Pod-wise Cycle KPI (Cycle=${cycle})`
+  });
+
+  // Show fallback note if applicable
   if (result.fallbackCycle) {
-    out += `\n[Note: ${result.currentCycle} has 0 committed. Showing ${result.fallbackCycle} which has data.]\n\n`;
-    out += formatCycleKpiTable(result.cycleKpi, result.fallbackCycle, `A) Pod-wise Cycle KPI table (cycle=${result.fallbackCycle}) [FALLBACK]`);
+    out += `[Note: ${result.currentCycle} has 0 committed. Showing ${result.fallbackCycle} which has data.]\n`;
   }
 
   out += `\n`;
 
-  // Feature movement table
-  out += formatFeatureMovementTable(result.featureMovement);
+  // Beautified Feature Movement table
+  out += formatFeatureMovementBox(result.featureMovement, {
+    title: "B) Feature Movement (Weekly Snapshot)"
+  });
 
   out += `\n*Source: LIVE from Linear (${result.fetchedAt})*`;
 
@@ -530,7 +545,7 @@ function formatWeeklyKpiOutput(result) {
 }
 
 /**
- * Format combined KPI with beautiful markdown tables and project summaries
+ * Format combined KPI with beautified box tables and project summaries
  * This is the enhanced version showing both DEL and Weekly KPIs
  */
 function formatCombinedKpiOutput(result, projectsByPod = null) {
@@ -544,51 +559,23 @@ function formatCombinedKpiOutput(result, projectsByPod = null) {
 
   let out = "";
 
-  // ============== SECTION 1: DEL KPI ==============
+  // ============== SECTION 1: DEL KPI (Beautified Box) ==============
   out += `## DEL KPI (Cycle ${cycle})\n\n`;
-  out += `> DEL = Delivery Excellence Level metrics tracking committed vs completed deliverables\n\n`;
+  out += `DEL = Delivery Excellence Level metrics tracking committed vs completed deliverables\n\n`;
 
-  // Beautiful markdown table for DEL KPI
-  out += `| Pod | Committed | Completed | Delivery % | Spillover | Status |\n`;
-  out += `|-----|----------:|----------:|-----------:|----------:|--------|\n`;
-
-  let totalCommitted = 0, totalCompleted = 0, totalSpillover = 0;
-
-  for (const r of cycleRows) {
-    const statusIcon = r.status === "OK" ? "OK" : `${r.status}`;
-    out += `| ${r.pod} | ${r.committed} | ${r.completed} | ${r.deliveryPct} | ${r.spillover} | ${statusIcon} |\n`;
-    totalCommitted += r.committed;
-    totalCompleted += r.completed;
-    totalSpillover += r.spillover;
-  }
-
-  // Totals row
-  const totalPct = totalCommitted === 0 ? "0%" : `${Math.round((totalCompleted / totalCommitted) * 100)}%`;
-  out += `| **TOTAL** | **${totalCommitted}** | **${totalCompleted}** | **${totalPct}** | **${totalSpillover}** | - |\n`;
+  out += formatDelKpiBox(cycleRows, cycle, {
+    title: `DEL Metrics (Cycle=${cycle})`
+  });
 
   out += `\n`;
 
-  // ============== SECTION 2: Feature Movement KPI ==============
+  // ============== SECTION 2: Feature Movement KPI (Beautified Box) ==============
   out += `## Weekly Feature Movement\n\n`;
-  out += `> Tracks planned features across pods: Done, In-Flight, Not Started\n\n`;
+  out += `Tracks planned features across pods: Done, In-Flight, Not Started\n\n`;
 
-  // Beautiful markdown table for Feature Movement
-  out += `| Pod | Projects | Planned | In-Flight | Done | Not Started | Status |\n`;
-  out += `|-----|:--------:|--------:|----------:|-----:|------------:|--------|\n`;
-
-  let totalProjects = 0, totalInFlight = 0, totalDone = 0, totalNotStarted = 0;
-
-  for (const r of fmRows) {
-    const statusNote = r.plannedFeatures === 0 ? `*(0 projects; ${r.status})* ` : "";
-    out += `| ${r.pod} | ${r.plannedFeatures} | ${r.plannedFeatures} | ${r.inFlight} | ${r.done} | ${r.notStarted} | ${r.status} ${statusNote}|\n`;
-    totalProjects += r.plannedFeatures;
-    totalInFlight += r.inFlight;
-    totalDone += r.done;
-    totalNotStarted += r.notStarted;
-  }
-
-  // Totals row
-  out += `| **TOTAL** | **${totalProjects}** | **${totalProjects}** | **${totalInFlight}** | **${totalDone}** | **${totalNotStarted}** | - |\n`;
+  out += formatFeatureMovementBox(fmRows, {
+    title: "Feature Movement (Weekly Snapshot)"
+  });
 
   out += `\n`;
 
@@ -708,11 +695,195 @@ function generateInsights(result) {
   return insights.length > 0 ? `\n### Insights\n- ${insights.join("\n- ")}` : "";
 }
 
+/**
+ * Fetch pending (committed but not completed) DELs for a pod or all pods
+ * @param {string|null} podNameFilter - Optional pod name to filter by
+ * @returns {object} - { success, pendingDELs: [...], fetchedAt, ... }
+ */
+async function fetchPendingDELs(podNameFilter = null) {
+  const labelIds = loadLabelIds();
+  const cycleCalendar = loadCycleCalendar();
+  const podsConfig = loadPodsConfig();
+
+  if (!labelIds) {
+    return {
+      success: false,
+      error: "MISSING_LABEL_IDS",
+      message: "config/label_ids.json not found. Run the weekly KPI script first to generate it.",
+    };
+  }
+
+  if (!podsConfig) {
+    return {
+      success: false,
+      error: "MISSING_PODS_CONFIG",
+      message: "No pods configuration found.",
+    };
+  }
+
+  const delLabelId = labelIds.DEL;
+  const cancelledLabelId = labelIds["DEL-CANCELLED"];
+
+  if (!delLabelId) {
+    return {
+      success: false,
+      error: "MISSING_DEL_LABEL",
+      message: "DEL label ID not found in config/label_ids.json",
+    };
+  }
+
+  const client = getClient();
+  const now = new Date();
+  const pendingDELs = [];
+
+  // Filter pods if requested
+  let podsToProcess = Object.entries(podsConfig.pods);
+  if (podNameFilter) {
+    const filterLower = podNameFilter.toLowerCase();
+    podsToProcess = podsToProcess.filter(([name]) => name.toLowerCase() === filterLower);
+    if (podsToProcess.length === 0) {
+      return {
+        success: false,
+        error: "POD_NOT_FOUND",
+        message: `Pod "${podNameFilter}" not found.`,
+        availablePods: Object.keys(podsConfig.pods),
+      };
+    }
+  }
+
+  for (const [podName, pod] of podsToProcess) {
+    const teamId = pod.teamId;
+    if (!teamId) continue;
+
+    const podCalendar = cycleCalendar?.pods?.[podName];
+
+    // Get current cycle for this pod
+    const currentCycle = getCycleKeyByDate(podCalendar, now);
+
+    // Fetch DEL issues for this team (with caching)
+    let issues = [];
+    try {
+      const cacheKey = `del_issues_${teamId}`;
+      issues = await withCache(cacheKey, async () => {
+        return await fetchDELIssues(client, teamId, delLabelId);
+      }, CACHE_TTL.issues)();
+    } catch (e) {
+      continue;
+    }
+
+    // Enrich issues with label sets
+    const enriched = issues.map(it => {
+      const labels = (it.labels?.nodes || []).map(x => ({ id: x.id, name: x.name }));
+      const labelSet = new Set(labels.map(x => x.id));
+      const labelNames = labels.map(x => x.name);
+      return { ...it, _labels: labels, _labelSet: labelSet, _labelNames: labelNames };
+    });
+
+    // Find pending DELs (committed to current cycle but not completed)
+    for (const it of enriched) {
+      // Skip cancelled
+      if (cancelledLabelId && it._labelSet.has(cancelledLabelId)) continue;
+
+      // Check if committed to current cycle
+      const baselineLabelId = labelIds[`2026Q1-${currentCycle}`];
+      const isCommitted = baselineLabelId && it._labelSet.has(baselineLabelId);
+      if (!isCommitted) continue;
+
+      // Check if NOT completed
+      const isCompleted = it.state?.type === "completed";
+      if (isCompleted) continue;
+
+      // This is a pending DEL
+      pendingDELs.push({
+        pod: podName,
+        cycle: currentCycle,
+        identifier: it.identifier,
+        title: extractTitle(it),
+        state: it.state?.name || "Unknown",
+        stateType: it.state?.type || "unknown",
+        assignee: it.assignee?.name || "Unassigned",
+        project: it.project?.name || "No Project",
+        labels: it._labelNames.filter(n => !n.startsWith("2026Q1-") && n !== "DEL"),
+        createdAt: it.createdAt,
+      });
+    }
+  }
+
+  // Sort by pod, then by identifier
+  pendingDELs.sort((a, b) => {
+    if (a.pod !== b.pod) return a.pod.localeCompare(b.pod);
+    return a.identifier.localeCompare(b.identifier);
+  });
+
+  return {
+    success: true,
+    pendingDELs,
+    totalPending: pendingDELs.length,
+    podFilter: podNameFilter,
+    fetchedAt: now.toISOString(),
+  };
+}
+
+/**
+ * Extract a clean title from a DEL issue
+ */
+function extractTitle(issue) {
+  // DEL issues sometimes have format "[DEL] Actual Title" or just title
+  let title = issue.title || issue.identifier;
+  title = title.replace(/^\[DEL\]\s*/i, "").trim();
+  return title;
+}
+
+/**
+ * Format pending DELs for display with beautified box tables
+ */
+function formatPendingDELs(result) {
+  if (!result.success) {
+    let msg = `Error: ${result.error}\n${result.message}`;
+    if (result.availablePods) {
+      msg += `\nAvailable pods: ${result.availablePods.join(", ")}`;
+    }
+    return msg;
+  }
+
+  const { pendingDELs, totalPending, podFilter, fetchedAt } = result;
+
+  if (totalPending === 0) {
+    const podMsg = podFilter ? ` for ${podFilter}` : " across all pods";
+    return `No pending DELs found${podMsg}. All committed DELs are completed!\n\nSnapshot: ${fetchedAt}`;
+  }
+
+  let out = "";
+  const podMsg = podFilter ? `${podFilter}` : "All Pods";
+  out += `## Pending DELs - ${podMsg}\n\n`;
+  out += `Total Pending: ${totalPending}\n\n`;
+
+  // Group by pod
+  const byPod = {};
+  for (const del of pendingDELs) {
+    if (!byPod[del.pod]) byPod[del.pod] = [];
+    byPod[del.pod].push(del);
+  }
+
+  // Beautified box tables for each pod
+  for (const [podName, dels] of Object.entries(byPod)) {
+    out += formatPendingDelsBox(dels, podName, {
+      title: `${podName} (${dels.length} pending)`
+    });
+    out += "\n";
+  }
+
+  out += `Snapshot: ${fetchedAt}`;
+  return out;
+}
+
 module.exports = {
   computeWeeklyKpi,
   computeCycleKpi,
   computeFeatureMovement,
   computeCombinedKpi,
+  fetchPendingDELs,
+  formatPendingDELs,
   formatWeeklyKpiOutput,
   formatCombinedKpiOutput,
   formatCycleKpiTable,

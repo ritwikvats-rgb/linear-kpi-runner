@@ -101,7 +101,48 @@
       "teamId": "78142d8b-2f4c-4f5c-bfed-512f671319fb",
       "initiativeName": "Q1 2026 - GTS Roadmap",
       "initiativeId": "9b99df9c-aaa3-4b77-a355-bab91570506e",
-      "projects": []
+      "projects": [
+        {
+          "id": "90b344a1-263d-4e80-b69b-8dfda395be02",
+          "name": "[Q1 Project 2026]-Attribute QC for Segmented 2D Polylines",
+          "state": "backlog"
+        },
+        {
+          "id": "f9c6de7f-0184-414d-b335-ac1642da6b4a",
+          "name": "[Q1 2026 Project]-3D Polyline Pre-labels - ML exploration",
+          "state": "backlog"
+        },
+        {
+          "id": "3bcf4b83-cb26-49e8-8318-0fc41505dae6",
+          "name": "[Q1 2026 Project]-Native Editing During QC (SFv2)",
+          "state": "backlog"
+        },
+        {
+          "id": "aa4a737d-a0aa-4372-824b-3e8037179b6d",
+          "name": "[Q1 Project 2026]-Client-Specific 3D Model Packaging",
+          "state": "backlog"
+        },
+        {
+          "id": "3f6938ee-a92f-4e76-8d53-dd5317575069",
+          "name": "[Q1 Project 2026]-3D Annotation Density Benchmarking",
+          "state": "backlog"
+        },
+        {
+          "id": "9551e240-22e7-4c53-a8b7-70415ed14807",
+          "name": "[Q1 Project 2026]-Potree Task Usability Enhancements",
+          "state": "backlog"
+        },
+        {
+          "id": "2ea179a5-2dfe-4044-b50d-6a8b86884142",
+          "name": "[Q1 2026 Project]-QC Comparison View (Pre- & Post-Rework)",
+          "state": "backlog"
+        },
+        {
+          "id": "a6728ccb-ce76-46b6-a8a0-0e91a872326b",
+          "name": "[Q1 2026 Project]-[Exploration] Robotics data ingestion and visualisation POC",
+          "state": "backlog"
+        }
+      ]
     },
     "Control Center": {
       "teamId": "4a3d31ec-7fc2-49c8-8bbe-46b99c2311a5",
@@ -202,6 +243,66 @@
       "initiativeName": "Q1 2026 - Platform Roadmap",
       "initiativeId": "ac096465-261e-4c77-82ae-dd1037452461",
       "projects": [
+        {
+          "id": "a489a873-018b-4574-983e-0fbe53b20634",
+          "name": "Platform Extensibility Framework - Q1",
+          "state": "backlog"
+        },
+        {
+          "id": "384d4d51-8faa-478b-86ec-84185c0e0aeb",
+          "name": "Synk / Security Vulnerabilities - Q1",
+          "state": "started"
+        },
+        {
+          "id": "4f5cbbdd-f9a4-405c-8128-7885b8c214f4",
+          "name": "Common Adoption Dashbaord - Q1",
+          "state": "backlog"
+        },
+        {
+          "id": "4d9610d4-8a52-4f91-ba41-0eccc537d3b1",
+          "name": "Unified observability - Q1",
+          "state": "started"
+        },
+        {
+          "id": "716d4dd7-55f3-4fe1-a496-acd02306bf30",
+          "name": "Unified User Access Management - Q1",
+          "state": "backlog"
+        },
+        {
+          "id": "cda956c6-3b36-419a-a68e-01d6ab7af752",
+          "name": "Tech Debt - Q1",
+          "state": "backlog"
+        },
+        {
+          "id": "32a6e9e2-f325-4a93-8e65-a01e645e804c",
+          "name": "PII Data Deletion - Q1",
+          "state": "backlog"
+        },
+        {
+          "id": "d6f05ff5-8649-42bc-b0b6-a9ce7d49fd1c",
+          "name": "Domain Unification - Q1",
+          "state": "backlog"
+        },
+        {
+          "id": "299d0df8-cafa-4f8b-b0ab-f06a4530dcac",
+          "name": "Dependency Planning - Q1",
+          "state": "backlog"
+        },
+        {
+          "id": "120436a2-e9f3-42d6-bc1e-8d43ef9bc786",
+          "name": "Common Auth - Q1",
+          "state": "backlog"
+        },
+        {
+          "id": "ef1f2d24-9964-4b52-aa3d-fcf7cc62bb03",
+          "name": "Communication Infrastructure - Q1",
+          "state": "backlog"
+        },
+        {
+          "id": "755ddd7d-4e1f-4474-8fc0-7c44660dfa1f",
+          "name": "Productivity Extension - Q1",
+          "state": "backlog"
+        },
         {
           "id": "7c14ff2c-33e6-48c4-8f7b-46c23cfc46e2",
           "name": "New contributor portal : Gradien - Q1",

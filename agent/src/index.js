@@ -18,19 +18,24 @@ function printHelp() {
   console.log(`
 === KPI Agent v2 - Commands ===
 
-KPI COMMANDS (LIVE from Linear):
-  kpi                   Show both KPI tables (DEL + Feature Movement) + project summaries
-  weekly kpi            Same as "kpi"
-  full kpi              Same as "kpi"
-  del kpi               Same as "kpi" - shows DEL metrics with Feature Movement
-  kpi tables            Same as "kpi"
-  what's the kpi        Natural language KPI query
+POD QUERIES (Natural Language):
+  what's going on in FTS?           → Narrative summary for FTS pod
+  what's going on in Platform?      → Narrative summary for Platform pod
+  status of Talent Studio           → Narrative summary
+  how is GTS doing?                 → Narrative summary
+
+ALL-PODS / KPI QUERIES:
+  what's going on across all pods?  → Feature Movement + DEL tables + summary
+  what are our KPIs this week?      → Same as above
+  kpi                               → Feature Movement + DEL tables + summary
+  weekly kpi                        → Same as above
 
 SYSTEM COMMANDS:
   /help                 Show this help
   /refresh              Regenerate snapshot from Linear
   /snapshot             Show snapshot timestamp
   /exit                 Quit
+  debug                 Show debug info (config, IDs, etc.)
 
 LIVE DATA COMMANDS (real-time from Linear API):
   pods                  List all configured pods
@@ -44,22 +49,19 @@ CACHE COMMANDS:
   cache                 Show cache stats
   clear cache           Clear the API cache
 
-NATURAL LANGUAGE (auto-detects project queries):
-  what's going on in <project name>?   → Deep dive with comments
-  status of <project name>             → Project details + activity
-  tell me about <project name>         → Full project summary
-  what is feature movement this week?  → Pod-level snapshot
-  which pods have zero projects?       → Snapshot query
+NATURAL LANGUAGE PROJECT QUERIES:
+  what's going on in FTS Evals?     → Deep dive into specific project
+  status of Data-Driven Cohorts     → Project details + activity
+  tell me about tagging project     → Full project summary
 
 EXAMPLES:
-  kpi                   → Both DEL + Feature Movement tables + project summaries
-  weekly kpi            → Same as "kpi"
-  del kpi               → Same as "kpi" (shows DEL metrics)
-  pod fts               → Live summary of FTS pod
-  pod fts projects      → List all FTS projects
-  project tagging       → Details on "Tagging system V2" project
-  project tagging blockers → Show blockers
-  what's going on in FTS Evals → Deep dive into project with comments
+  what's going on in FTS?           → Pod narrative (summary + bullets + blockers)
+  what's going on across all pods?  → Two KPI tables + summary paragraph
+  kpi                               → Same as above (shortcut)
+  pod fts                           → Live data summary of FTS pod
+  pod fts projects                  → List all FTS projects
+  project tagging                   → Details on "Tagging system V2" project
+  what's going on in FTS Evals      → Deep dive into project with comments
 `.trim());
 }
 
