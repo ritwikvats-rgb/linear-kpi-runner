@@ -769,13 +769,19 @@ async function fetchPodCommentsSummary(podName, projects) {
     const messages = [
       {
         role: "system",
-        content: `You are a project status summarizer. Summarize recent Linear comments in 2-3 concise sentences.
+        content: `You are a project status summarizer. Summarize recent Linear comments PROJECT-WISE.
 
 Rules:
-- NO markdown formatting (no **, ##, bullets, etc.)
-- Write in plain professional prose
+- Output each project on its own line with format: "ProjectName: summary of that project"
+- NO markdown formatting (no **, ##, etc.)
+- Keep each project summary to 1-2 sentences
 - Focus on: current work, blockers, and progress
-- Be factual and direct`
+- Be factual and direct
+
+Example output format:
+FTS Evals: Multiple engineers working on test cases, one PR in review with pending Sonar fixes.
+Data-Driven Cohorts: UI work ongoing with Users page targeted for completion today.
+Dynamic Workflows: Tech spec largely complete, initial boilerplate work started.`
       },
       { role: "user", content: `Recent comments from ${podName} pod:\n${combinedText}` },
     ];
