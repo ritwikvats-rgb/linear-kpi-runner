@@ -15,6 +15,9 @@ const {
   formatFeatureMovementBox,
   formatDelKpiBox,
   formatPendingDelsBox,
+  formatTable,
+  formatSummaryBox,
+  truncate,
 } = require("./tableFormatter");
 
 const REPO_ROOT = path.resolve(__dirname, "../..");
@@ -863,7 +866,7 @@ async function fetchDELsByCycle(cycle, podNameFilter = null) {
 }
 
 /**
- * Format DELs by cycle for display
+ * Format DELs by cycle for display with beautiful box-style tables
  */
 function formatDELsByCycle(result) {
   if (!result.success) {
@@ -883,8 +886,13 @@ function formatDELsByCycle(result) {
 
   let out = "";
   const podMsg = podFilter ? `${podFilter}` : "All Pods";
-  out += `## DELs in Cycle ${cycle} - ${podMsg}\n\n`;
-  out += `Summary: ${totalCommitted} committed, ${totalCompleted} completed, ${totalPending} pending (${deliveryPct}% delivery)\n\n`;
+
+  // Summary box
+  out += formatSummaryBox(`DELs in Cycle ${cycle} - ${podMsg}`, [
+    `Committed: ${totalCommitted}  |  Completed: ${totalCompleted}  |  Pending: ${totalPending}`,
+    `Delivery Rate: ${deliveryPct}%`,
+  ]);
+  out += "\n";
 
   // Group by pod
   const byPod = {};
@@ -893,20 +901,31 @@ function formatDELsByCycle(result) {
     byPod[del.pod].push(del);
   }
 
-  // Format each pod's DELs
+  // Column definitions for DEL table
+  const columns = [
+    { key: "identifier", header: "ID", align: "left", width: 10 },
+    { key: "title", header: "Title", align: "left", width: 40 },
+    { key: "state", header: "State", align: "left", width: 10 },
+    { key: "assignee", header: "Assignee", align: "left", width: 18 },
+  ];
+
+  // Format each pod's DELs with box-style table
   for (const [podName, podDels] of Object.entries(byPod)) {
     const completed = podDels.filter(d => d.isCompleted).length;
     const pending = podDels.length - completed;
 
-    out += `### ${podName} (${podDels.length} DELs: ${completed} done, ${pending} pending)\n\n`;
-    out += `| ID | Title | State | Assignee |\n`;
-    out += `|----|-------|-------|----------|\n`;
+    // Prepare data with truncated values
+    const tableData = podDels.map(del => ({
+      identifier: del.identifier,
+      title: truncate(del.title, 40),
+      state: del.isCompleted ? "Done" : del.state,
+      assignee: truncate(del.assignee || "Unassigned", 18),
+    }));
 
-    for (const del of podDels) {
-      const status = del.isCompleted ? "Done" : del.state;
-      const title = del.title.length > 40 ? del.title.substring(0, 37) + "..." : del.title;
-      out += `| ${del.identifier} | ${title} | ${status} | ${del.assignee} |\n`;
-    }
+    out += formatTable(tableData, columns, {
+      title: `${podName} (${podDels.length} DELs: ${completed} done, ${pending} pending)`,
+      emptyMessage: `No DELs for ${podName}.`,
+    });
     out += "\n";
   }
 
