@@ -12,4 +12,5 @@ agent/output/*.json
 agent/output/*.jsonl
 agent/output/*.md
 out/
-node_modules/agent/.env.BACKUP
+agent/.env.BACKUP
+state/
