@@ -38,6 +38,17 @@ const fs = require("fs");
 const path = require("path");
 const Database = require("better-sqlite3");
 
+// Import shared utilities
+const {
+  getCycleKeyByDate,
+  shouldAllowRefreshForCycle,
+  shouldFreezeNow,
+  isCycleActive,
+  cycleIndex,
+} = require("../agent/src/shared/cycleUtils");
+
+const { norm } = require("../agent/src/shared/labelUtils");
+
 const LINEAR_API_KEY = process.env.LINEAR_API_KEY;
 if (!LINEAR_API_KEY) {
   console.error("Missing LINEAR_API_KEY env var");
@@ -69,42 +80,8 @@ function csvEscape(v) {
   if (s.includes(",") || s.includes('"') || s.includes("\n")) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }
-function norm(s) {
-  return String(s ?? "").trim().toLowerCase();
-}
-function cycleIndex(cycleKey) {
-  const m = String(cycleKey).toUpperCase().match(/^C([1-6])$/);
-  return m ? Number(m[1]) : null;
-}
-function nowMs() {
-  return Date.now();
-}
 
-function getCycleKeyByDate(podCalendar, refDate = new Date()) {
-  // active match first
-  for (let i = 1; i <= 6; i++) {
-    const c = podCalendar?.[`C${i}`];
-    if (!c) continue;
-    const s = new Date(c.start).getTime();
-    const e = new Date(c.end).getTime();
-    const r = refDate.getTime();
-    if (r >= s && r <= e) return `C${i}`;
-  }
-  // else latest ended
-  let best = null;
-  let bestEnd = -Infinity;
-  for (let i = 1; i <= 6; i++) {
-    const c = podCalendar?.[`C${i}`];
-    if (!c) continue;
-    const e = new Date(c.end).getTime();
-    if (e <= refDate.getTime() && e > bestEnd) {
-      bestEnd = e;
-      best = `C${i}`;
-    }
-  }
-  return best || "C1";
-}
-
+// Use local versions for CSV-specific row format (different property names)
 function sumCommittedForCycle(kpiRows, cycleKey) {
   return kpiRows
     .filter(r => r.Cycle === cycleKey)
@@ -268,55 +245,19 @@ function freezeSnapshot(db, pod, cycle) {
   console.log(`[STATE] Snapshot frozen: pod="${pod}" cycle="${cycle}" committed=${meta.committedCount}`);
 }
 
-/* -------------------- FREEZE POLICY -------------------- */
+/* -------------------- FREEZE POLICY (using shared utilities) -------------------- */
 
-function getFreezeMomentMs(podCalendar) {
-  // C1/C2 freeze after end of FREEZE_POLICY_CYCLE (default C2)
-  const fp = podCalendar?.[FREEZE_POLICY_CYCLE];
-  return fp ? new Date(fp.end).getTime() : null;
+// Wrapper to use module-level FREEZE_POLICY_CYCLE with shared utilities
+function allowRefreshForCycle(podCalendar, cycleKey, now) {
+  return shouldAllowRefreshForCycle(podCalendar, cycleKey, now, FREEZE_POLICY_CYCLE);
 }
 
-function shouldAllowRefreshForCycle(podCalendar, cycleKey, now) {
-  // allow refresh for cycles <= FREEZE_POLICY_CYCLE until FREEZE_POLICY_CYCLE ends
-  const idx = cycleIndex(cycleKey);
-  const fpIdx = cycleIndex(FREEZE_POLICY_CYCLE);
-
-  if (!idx || !fpIdx) return false;
-
-  if (idx <= fpIdx) {
-    const freezeAt = getFreezeMomentMs(podCalendar);
-    if (!freezeAt) return false;
-    return now.getTime() <= freezeAt;
-  }
-
-  // for C3+ refresh allowed only while cycle is active (so snapshot evolves until end)
-  const c = podCalendar?.[cycleKey];
-  if (!c) return false;
-  return now.getTime() <= new Date(c.end).getTime();
-}
-
-function shouldFreezeNow(podCalendar, cycleKey, now) {
-  const idx = cycleIndex(cycleKey);
-  const fpIdx = cycleIndex(FREEZE_POLICY_CYCLE);
-
-  if (!idx || !fpIdx) return false;
-
-  if (idx <= fpIdx) {
-    const freezeAt = getFreezeMomentMs(podCalendar);
-    if (!freezeAt) return false;
-    return now.getTime() > freezeAt;
-  }
-
-  const c = podCalendar?.[cycleKey];
-  if (!c) return false;
-  return now.getTime() > new Date(c.end).getTime();
+function freezeNow(podCalendar, cycleKey, now) {
+  return shouldFreezeNow(podCalendar, cycleKey, now, FREEZE_POLICY_CYCLE);
 }
 
 function isCycleActiveForPod(podCalendar, cycleKey, now) {
-  const c = podCalendar?.[cycleKey];
-  if (!c) return false;
-  const endMs = new Date(c.end).getTime();
-  return now.getTime() <= endMs; // inclusive end-of-cycle
+  return isCycleActive(podCalendar, cycleKey, now);
 }
 
 /* -------------------- GQL -------------------- */
@@ -541,11 +482,11 @@ async function generatePodCycleKpi(db, podsResolved, labelIds, podCalendars) {
       }
 
       // snapshot maintenance
-      const allowRefresh = shouldAllowRefreshForCycle(podCalendar, cycleKey, now);
+      const allowRefresh = allowRefreshForCycle(podCalendar, cycleKey, now);
       upsertSnapshot(db, podName, cycleKey, committedNowIds, allowRefresh);
 
       // freeze if needed
-      if (shouldFreezeNow(podCalendar, cycleKey, now)) {
+      if (freezeNow(podCalendar, cycleKey, now)) {
         freezeSnapshot(db, podName, cycleKey);
       }
 
@@ -646,7 +587,7 @@ function generatePodFeatureMovement(podsResolved) {
 
 /* -------------------- MARKDOWN REPORT -------------------- */
 
-function writeWeeklyReport(org, podCalendars, kpiB) {
+function writeWeeklyReport(org, _podCalendars, kpiB) {
   const md = [];
   md.push(`# Weekly KPI Report`);
   md.push(`- Org: **${org.name}** (${org.urlKey})`);

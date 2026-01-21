@@ -206,33 +206,6 @@ class LinearClient {
     return data.issue?.comments?.nodes || [];
   }
 
-  // Search projects by name (fuzzy)
-  async searchProjects(searchTerm, first = 20) {
-    const query = `
-      query SearchProjects($searchTerm: String!, $first: Int!) {
-        searchProjects(term: $searchTerm, first: $first) {
-          nodes {
-            id
-            name
-            state
-            lead { name }
-            url
-            updatedAt
-          }
-        }
-      }
-    `;
-    try {
-      const data = await this.gql(query, { searchTerm, first });
-      return data.searchProjects?.nodes || [];
-    } catch (e) {
-      // Search API might not be available, fall back to empty
-      if (e.message?.includes("Cannot query field")) {
-        return [];
-      }
-      throw e;
-    }
-  }
 }
 
 module.exports = { LinearClient };

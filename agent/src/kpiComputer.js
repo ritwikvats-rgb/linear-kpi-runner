@@ -7,8 +7,6 @@
  * B) Feature Movement table
  *    Pod | Planned Features | Done | In-Flight | Not Started
  */
-const fs = require("fs");
-const path = require("path");
 const { getClient, getConfig, normalizeState } = require("./liveLinear");
 const { withCache } = require("./cache");
 const {
@@ -20,172 +18,30 @@ const {
   truncate,
 } = require("./tableFormatter");
 
-const REPO_ROOT = path.resolve(__dirname, "../..");
+// Import shared utilities
+const {
+  loadCycleCalendar,
+  getCycleKeyByDate,
+  isCycleActive,
+  getBestCycleByCommitted,
+} = require("./shared/cycleUtils");
+
+const {
+  loadLabelIds,
+  enrichIssuesWithLabels,
+  fetchDELIssues,
+  extractDelTitle,
+} = require("./shared/labelUtils");
+
+const {
+  loadPodsConfig,
+  normalizeState: normalizeProjectState,
+} = require("./shared/podsUtils");
+
 const CACHE_TTL = {
   issues: 3 * 60 * 1000,    // 3 min for issues
   projects: 5 * 60 * 1000,  // 5 min for projects
 };
-
-// ============== CONFIG LOADERS ==============
-
-function loadCycleCalendar() {
-  const fp = path.join(REPO_ROOT, "config", "cycle_calendar.json");
-  if (!fs.existsSync(fp)) {
-    return null;
-  }
-  try {
-    return JSON.parse(fs.readFileSync(fp, "utf8"));
-  } catch {
-    return null;
-  }
-}
-
-function loadLabelIds() {
-  const fp = path.join(REPO_ROOT, "config", "label_ids.json");
-  if (!fs.existsSync(fp)) {
-    return null;
-  }
-  try {
-    return JSON.parse(fs.readFileSync(fp, "utf8"));
-  } catch {
-    return null;
-  }
-}
-
-function loadPodsConfig() {
-  // Try linear_ids.json first (more complete)
-  const linearIdsPath = path.join(REPO_ROOT, "config", "linear_ids.json");
-  if (fs.existsSync(linearIdsPath)) {
-    try {
-      const data = JSON.parse(fs.readFileSync(linearIdsPath, "utf8"));
-      if (data?.pods) return { pods: data.pods, source: "linear_ids.json" };
-    } catch {}
-  }
-
-  // Fall back to pods.json
-  const podsPath = path.join(REPO_ROOT, "config", "pods.json");
-  if (fs.existsSync(podsPath)) {
-    try {
-      const data = JSON.parse(fs.readFileSync(podsPath, "utf8"));
-      return { pods: data, source: "pods.json" };
-    } catch {}
-  }
-
-  return null;
-}
-
-// ============== CYCLE HELPERS ==============
-
-/**
- * Get the current cycle key for a pod based on date
- */
-function getCycleKeyByDate(podCalendar, refDate = new Date()) {
-  if (!podCalendar) return null;
-
-  // Find active cycle first
-  for (let i = 1; i <= 6; i++) {
-    const c = podCalendar[`C${i}`];
-    if (!c) continue;
-    const start = new Date(c.start).getTime();
-    const end = new Date(c.end).getTime();
-    const now = refDate.getTime();
-    if (now >= start && now <= end) return `C${i}`;
-  }
-
-  // If no active, find most recent ended
-  let best = null;
-  let bestEnd = -Infinity;
-  for (let i = 1; i <= 6; i++) {
-    const c = podCalendar[`C${i}`];
-    if (!c) continue;
-    const end = new Date(c.end).getTime();
-    if (end <= refDate.getTime() && end > bestEnd) {
-      bestEnd = end;
-      best = `C${i}`;
-    }
-  }
-
-  return best || "C1";
-}
-
-/**
- * Check if a cycle is currently active for a pod
- */
-function isCycleActive(podCalendar, cycleKey, refDate = new Date()) {
-  const c = podCalendar?.[cycleKey];
-  if (!c) return false;
-  const endMs = new Date(c.end).getTime();
-  return refDate.getTime() <= endMs;
-}
-
-/**
- * Get the best cycle (with most committed DELs) for display
- */
-function getBestCycleByCommitted(kpiRows) {
-  const cycleCommits = {};
-  for (const row of kpiRows) {
-    cycleCommits[row.cycle] = (cycleCommits[row.cycle] || 0) + row.committed;
-  }
-
-  let best = "C1";
-  let bestSum = -1;
-  for (const [cycle, sum] of Object.entries(cycleCommits)) {
-    if (sum > bestSum) {
-      bestSum = sum;
-      best = cycle;
-    }
-  }
-  return { bestCycle: best, bestCommittedSum: bestSum };
-}
-
-// ============== GRAPHQL QUERIES ==============
-
-const Q_ISSUES_BY_TEAM_AND_LABEL = `
-query IssuesByTeamAndLabel($teamId: ID!, $labelId: ID!, $first: Int!, $after: String) {
-  issues(first: $first, after: $after, filter: {
-    team: { id: { eq: $teamId } },
-    labels: { id: { eq: $labelId } }
-  }) {
-    nodes {
-      id
-      identifier
-      title
-      createdAt
-      completedAt
-      state { type name }
-      labels { nodes { id name } }
-      assignee { id name }
-      project { id name }
-    }
-    pageInfo { hasNextPage endCursor }
-  }
-}
-`;
-
-/**
- * Fetch all issues with DEL label for a team (paginated)
- */
-async function fetchDELIssues(client, teamId, delLabelId) {
-  const issues = [];
-  let after = null;
-
-  while (true) {
-    const data = await client.gql(Q_ISSUES_BY_TEAM_AND_LABEL, {
-      teamId,
-      labelId: delLabelId,
-      first: 100,
-      after,
-    });
-
-    const conn = data.issues;
-    issues.push(...(conn.nodes || []));
-
-    if (!conn.pageInfo?.hasNextPage) break;
-    after = conn.pageInfo.endCursor;
-  }
-
-  return issues;
-}
 
 // ============== KPI COMPUTATION ==============
 
@@ -237,35 +93,45 @@ async function computeCycleKpi() {
   const now = new Date();
   const rows = [];
 
-  for (const [podName, pod] of Object.entries(podsConfig.pods)) {
-    const teamId = pod.teamId;
-    if (!teamId) {
-      // Skip pods without teamId
-      for (let i = 1; i <= 6; i++) {
-        rows.push({
-          pod: podName,
-          cycle: `C${i}`,
-          committed: 0,
-          completed: 0,
-          deliveryPct: "0%",
-          spillover: 0,
-          status: "NO_TEAM_ID",
-        });
-      }
-      continue;
+  // PARALLEL: Fetch all pod issues concurrently for better performance
+  const podEntries = Object.entries(podsConfig.pods);
+  const podsWithTeamId = podEntries.filter(([, pod]) => pod.teamId);
+  const podsWithoutTeamId = podEntries.filter(([, pod]) => !pod.teamId);
+
+  // Add empty rows for pods without teamId
+  for (const [podName] of podsWithoutTeamId) {
+    for (let i = 1; i <= 6; i++) {
+      rows.push({
+        pod: podName,
+        cycle: `C${i}`,
+        committed: 0,
+        completed: 0,
+        deliveryPct: "0%",
+        spillover: 0,
+        status: "NO_TEAM_ID",
+      });
     }
+  }
 
-    const podCalendar = cycleCalendar.pods?.[podName];
-
-    // Fetch DEL issues for this team (with caching)
-    let issues = [];
+  // Fetch all pod issues in parallel
+  const fetchPromises = podsWithTeamId.map(async ([podName, pod]) => {
+    const cacheKey = `del_issues_${pod.teamId}`;
     try {
-      const cacheKey = `del_issues_${teamId}`;
-      issues = await withCache(cacheKey, async () => {
-        return await fetchDELIssues(client, teamId, delLabelId);
+      const issues = await withCache(cacheKey, async () => {
+        return await fetchDELIssues(client, pod.teamId, delLabelId);
       }, CACHE_TTL.issues)();
+      return { podName, pod, issues, success: true };
     } catch (e) {
-      // Fetch failed, continue with empty
+      return { podName, pod, issues: [], success: false };
+    }
+  });
+
+  const fetchResults = await Promise.all(fetchPromises);
+
+  // Process results sequentially
+  for (const { podName, issues, success } of fetchResults) {
+    if (!success) {
+      // Fetch failed, add empty rows
       for (let i = 1; i <= 6; i++) {
         rows.push({
           pod: podName,
@@ -280,12 +146,10 @@ async function computeCycleKpi() {
       continue;
     }
 
-    // Enrich issues with label sets
-    const enriched = issues.map(it => {
-      const labels = (it.labels?.nodes || []).map(x => ({ id: x.id, name: x.name }));
-      const labelSet = new Set(labels.map(x => x.id));
-      return { ...it, _labels: labels, _labelSet: labelSet };
-    });
+    const podCalendar = cycleCalendar.pods?.[podName];
+
+    // Enrich issues with label sets (using shared utility)
+    const enriched = enrichIssuesWithLabels(issues);
 
     // Compute KPI for each cycle
     for (let i = 1; i <= 6; i++) {
@@ -627,17 +491,6 @@ function formatCombinedKpiOutput(result, projectsByPod = null) {
   return out;
 }
 
-/**
- * Helper to normalize project state for display
- */
-function normalizeProjectState(state) {
-  const s = String(state || "").toLowerCase();
-  if (s === "completed") return "done";
-  if (s === "started" || s === "paused") return "in_flight";
-  if (s === "planned" || s === "backlog") return "not_started";
-  if (s === "canceled" || s === "cancelled") return "cancelled";
-  return s || "unknown";
-}
 
 /**
  * Compute full combined KPI with project details
@@ -718,7 +571,6 @@ function generateInsights(result) {
  */
 async function fetchDELsByCycle(cycle, podNameFilter = null) {
   const labelIds = loadLabelIds();
-  const cycleCalendar = loadCycleCalendar();
   const podsConfig = loadPodsConfig();
 
   if (!labelIds) {
@@ -804,13 +656,8 @@ async function fetchDELsByCycle(cycle, podNameFilter = null) {
       continue;
     }
 
-    // Enrich issues with label sets
-    const enriched = issues.map(it => {
-      const labels = (it.labels?.nodes || []).map(x => ({ id: x.id, name: x.name }));
-      const labelSet = new Set(labels.map(x => x.id));
-      const labelNames = labels.map(x => x.name);
-      return { ...it, _labels: labels, _labelSet: labelSet, _labelNames: labelNames };
-    });
+    // Enrich issues with label sets (using shared utility)
+    const enriched = enrichIssuesWithLabels(issues);
 
     // Find DELs committed to the specified cycle
     for (const it of enriched) {
@@ -828,7 +675,7 @@ async function fetchDELsByCycle(cycle, podNameFilter = null) {
         pod: podName,
         cycle: cycleUpper,
         identifier: it.identifier,
-        title: extractTitle(it),
+        title: extractDelTitle(it),
         state: it.state?.name || "Unknown",
         stateType: it.state?.type || "unknown",
         isCompleted,
@@ -1009,13 +856,8 @@ async function fetchPendingDELs(podNameFilter = null) {
       continue;
     }
 
-    // Enrich issues with label sets
-    const enriched = issues.map(it => {
-      const labels = (it.labels?.nodes || []).map(x => ({ id: x.id, name: x.name }));
-      const labelSet = new Set(labels.map(x => x.id));
-      const labelNames = labels.map(x => x.name);
-      return { ...it, _labels: labels, _labelSet: labelSet, _labelNames: labelNames };
-    });
+    // Enrich issues with label sets (using shared utility)
+    const enriched = enrichIssuesWithLabels(issues);
 
     // Find pending DELs (committed to current cycle but not completed)
     for (const it of enriched) {
@@ -1036,7 +878,7 @@ async function fetchPendingDELs(podNameFilter = null) {
         pod: podName,
         cycle: currentCycle,
         identifier: it.identifier,
-        title: extractTitle(it),
+        title: extractDelTitle(it),
         state: it.state?.name || "Unknown",
         stateType: it.state?.type || "unknown",
         assignee: it.assignee?.name || "Unassigned",
@@ -1062,15 +904,6 @@ async function fetchPendingDELs(podNameFilter = null) {
   };
 }
 
-/**
- * Extract a clean title from a DEL issue
- */
-function extractTitle(issue) {
-  // DEL issues sometimes have format "[DEL] Actual Title" or just title
-  let title = issue.title || issue.identifier;
-  title = title.replace(/^\[DEL\]\s*/i, "").trim();
-  return title;
-}
 
 /**
  * Format pending DELs for display with beautified box tables
