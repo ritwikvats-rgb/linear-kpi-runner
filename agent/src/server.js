@@ -7,6 +7,8 @@
 const express = require("express");
 const path = require("path");
 const { answer } = require("./answerer");
+const { getChartData, getPodDetailData } = require("./chartDataService");
+const { generateChartInsights } = require("./chartInsights");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -47,6 +49,54 @@ app.post("/api/ask", async (req, res) => {
       success: false,
       error: "Failed to process question",
       message: err.message || "An unexpected error occurred"
+    });
+  }
+});
+
+// ============== CHART ENDPOINTS ==============
+
+// Get all chart data
+app.get("/api/charts/data", async (req, res) => {
+  try {
+    const data = await getChartData();
+    res.json(data);
+  } catch (err) {
+    console.error("Error fetching chart data:", err);
+    res.status(500).json({
+      success: false,
+      error: "CHART_DATA_ERROR",
+      message: err.message || "Failed to fetch chart data"
+    });
+  }
+});
+
+// Get AI-powered chart insights
+app.get("/api/charts/insights", async (req, res) => {
+  try {
+    const chartData = await getChartData();
+    const insights = await generateChartInsights(chartData);
+    res.json(insights);
+  } catch (err) {
+    console.error("Error generating insights:", err);
+    res.status(500).json({
+      success: false,
+      error: "INSIGHT_ERROR",
+      message: err.message || "Failed to generate insights"
+    });
+  }
+});
+
+// Get pod detail data for drill-down
+app.get("/api/charts/pod/:podName", async (req, res) => {
+  try {
+    const data = await getPodDetailData(req.params.podName);
+    res.json(data);
+  } catch (err) {
+    console.error("Error fetching pod detail:", err);
+    res.status(500).json({
+      success: false,
+      error: "POD_DETAIL_ERROR",
+      message: err.message || "Failed to fetch pod detail"
     });
   }
 });

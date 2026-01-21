@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pod Comparison Charts - KPI Dashboard</title>
+  <link rel="stylesheet" href="css/charts.css">
+  <!-- Chart.js 4.4.1 via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <!-- Navigation Bar -->
+  <nav class="nav-bar">
+    <div class="nav-brand">
+      <svg class="nav-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 3v18h18"/>
+        <path d="M18 17V9"/>
+        <path d="M13 17V5"/>
+        <path d="M8 17v-3"/>
+      </svg>
+      <span>KPI Dashboard</span>
+    </div>
+    <div class="nav-links">
+      <a href="index.html" class="nav-link">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        Chat
+      </a>
+      <a href="charts.html" class="nav-link active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 20V10"/>
+          <path d="M12 20V4"/>
+          <path d="M6 20v-6"/>
+        </svg>
+        Charts
+      </a>
+    </div>
+    <div class="nav-status">
+      <span class="status-dot"></span>
+      <span>Live Data</span>
+    </div>
+  </nav>
+
+  <!-- Hero Metrics Bar -->
+  <section class="hero-metrics" id="heroMetrics">
+    <div class="hero-card">
+      <div class="hero-value" id="heroDelivery">--</div>
+      <div class="hero-label">Overall Delivery</div>
+      <div class="hero-sublabel" id="heroDeliveryDetail">Loading...</div>
+    </div>
+    <div class="hero-card">
+      <div class="hero-value" id="heroFeatures">--</div>
+      <div class="hero-label">Features Done</div>
+      <div class="hero-sublabel" id="heroFeaturesDetail">Loading...</div>
+    </div>
+    <div class="hero-card">
+      <div class="hero-value" id="heroActivePods">--</div>
+      <div class="hero-label">Active Pods</div>
+      <div class="hero-sublabel" id="heroPodsDetail">Loading...</div>
+    </div>
+    <div class="hero-card highlight">
+      <div class="hero-value" id="heroTopPerformer">--</div>
+      <div class="hero-label">Top Performer</div>
+      <div class="hero-sublabel" id="heroTopDetail">Loading...</div>
+    </div>
+  </section>
+
+  <!-- Main Charts Grid -->
+  <main class="charts-grid">
+    <!-- Delivery Comparison Chart -->
+    <div class="chart-card" id="deliveryCard">
+      <div class="chart-header">
+        <h2 class="chart-title">Delivery Comparison</h2>
+        <span class="chart-badge" id="deliveryCycleBadge">--</span>
+      </div>
+      <div class="chart-container">
+        <canvas id="deliveryChart"></canvas>
+      </div>
+      <div class="chart-loading" id="deliveryLoading">
+        <div class="spinner"></div>
+        <span>Loading chart data...</span>
+      </div>
+    </div>
+
+    <!-- Feature Progress Chart -->
+    <div class="chart-card" id="featureCard">
+      <div class="chart-header">
+        <h2 class="chart-title">Feature Progress</h2>
+        <span class="chart-badge" id="featureTotalBadge">--</span>
+      </div>
+      <div class="chart-container donut-container">
+        <canvas id="featureChart"></canvas>
+        <div class="donut-center" id="donutCenter">
+          <div class="donut-value">--</div>
+          <div class="donut-label">Done</div>
+        </div>
+      </div>
+      <div class="chart-loading" id="featureLoading">
+        <div class="spinner"></div>
+        <span>Loading chart data...</span>
+      </div>
+    </div>
+
+    <!-- Cycle Trend Chart -->
+    <div class="chart-card wide" id="trendCard">
+      <div class="chart-header">
+        <h2 class="chart-title">Delivery Trend Across Cycles</h2>
+        <div class="chart-legend" id="trendLegend"></div>
+      </div>
+      <div class="chart-container">
+        <canvas id="trendChart"></canvas>
+      </div>
+      <div class="chart-loading" id="trendLoading">
+        <div class="spinner"></div>
+        <span>Loading chart data...</span>
+      </div>
+    </div>
+
+    <!-- Pod Health Chart -->
+    <div class="chart-card" id="healthCard">
+      <div class="chart-header">
+        <h2 class="chart-title">Pod Health Overview</h2>
+        <button class="chart-action" id="healthToggle" title="Toggle pods">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+      </div>
+      <div class="chart-container">
+        <canvas id="healthChart"></canvas>
+      </div>
+      <div class="chart-loading" id="healthLoading">
+        <div class="spinner"></div>
+        <span>Loading chart data...</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- AI Insights Panel -->
+  <section class="insights-panel" id="insightsPanel">
+    <div class="insights-header">
+      <h2 class="insights-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+        </svg>
+        AI Insights
+      </h2>
+      <button class="refresh-btn" id="refreshInsights" title="Refresh insights">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M23 4v6h-6"/>
+          <path d="M1 20v-6h6"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+      </button>
+    </div>
+    <div class="insights-grid" id="insightsGrid">
+      <div class="insight-card loading">
+        <div class="insight-skeleton"></div>
+        <div class="insight-skeleton short"></div>
+      </div>
+      <div class="insight-card loading">
+        <div class="insight-skeleton"></div>
+        <div class="insight-skeleton short"></div>
+      </div>
+      <div class="insight-card loading">
+        <div class="insight-skeleton"></div>
+        <div class="insight-skeleton short"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <span>Data refreshed: <span id="lastUpdated">--</span></span>
+    <span>Source: Live from Linear</span>
+  </footer>
+
+  <!-- Chart.js and custom scripts -->
+  <script src="js/charts.js"></script>
+</body>
+</html>

@@ -49,6 +49,31 @@
       border-radius: 50%;
     }
 
+    .charts-link {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s;
+      margin-left: auto;
+      margin-right: 16px;
+    }
+
+    .charts-link:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+    }
+
+    .charts-link svg {
+      opacity: 0.9;
+    }
+
     .chat-container {
       flex: 1;
       overflow-y: auto;
@@ -213,6 +238,14 @@
 <body>
   <header>
     <h1>KPI Assistant</h1>
+    <a href="charts.html" class="charts-link" title="View Charts Dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+        <path d="M18 20V10"/>
+        <path d="M12 20V4"/>
+        <path d="M6 20v-6"/>
+      </svg>
+      Charts
+    </a>
     <span class="status">Live Data</span>
   </header>
 
