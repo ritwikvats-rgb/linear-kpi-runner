@@ -106,6 +106,11 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "../public/index.html"));
 });
 
+// Serve the unified KPI dashboard
+app.get("/dashboard", (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/kpi-dashboard.html"));
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`
