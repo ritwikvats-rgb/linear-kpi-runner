@@ -11,4 +11,6 @@ services:
         sync: false
       - key: FUELIX_API_KEY
         sync: false
+      - key: SLACK_BOT_TOKEN
+        sync: false
     healthCheckPath: /api/health

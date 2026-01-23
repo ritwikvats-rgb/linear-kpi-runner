@@ -9,6 +9,10 @@ const path = require("path");
 const { answer } = require("./answerer");
 const { getChartData, getPodDetailData } = require("./chartDataService");
 const { generateChartInsights } = require("./chartInsights");
+const { SlackClient } = require("./slackClient");
+const { LinearClient } = require("./linearClient");
+const { ProjectChannelMapper } = require("./projectChannelMapper");
+const { ProjectAnalyzer } = require("./projectAnalyzer");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -98,6 +102,92 @@ app.get("/api/charts/pod/:podName", async (req, res) => {
       error: "POD_DETAIL_ERROR",
       message: err.message || "Failed to fetch pod detail"
     });
+  }
+});
+
+// ============== SLACK INTEGRATION ENDPOINTS ==============
+
+// Initialize Slack/Linear clients (lazy)
+let slackClient = null;
+let linearClient = null;
+let projectAnalyzer = null;
+
+function getSlackClient() {
+  if (!slackClient && process.env.SLACK_BOT_TOKEN) {
+    slackClient = new SlackClient({ botToken: process.env.SLACK_BOT_TOKEN });
+  }
+  return slackClient;
+}
+
+function getLinearClient() {
+  if (!linearClient && process.env.LINEAR_API_KEY) {
+    linearClient = new LinearClient({ apiKey: process.env.LINEAR_API_KEY });
+  }
+  return linearClient;
+}
+
+function getProjectAnalyzer() {
+  if (!projectAnalyzer) {
+    const slack = getSlackClient();
+    const linear = getLinearClient();
+    if (slack && linear) {
+      projectAnalyzer = new ProjectAnalyzer({ linearClient: linear, slackClient: slack });
+    }
+  }
+  return projectAnalyzer;
+}
+
+// Check Slack connection status
+app.get("/api/slack/status", async (req, res) => {
+  try {
+    const slack = getSlackClient();
+    if (!slack) {
+      return res.json({ ok: false, error: "SLACK_BOT_TOKEN not configured" });
+    }
+    const auth = await slack.testAuth();
+    res.json({ ok: true, bot: auth.user, team: auth.team });
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
+});
+
+// Get projects with Slack channels
+app.get("/api/slack/projects", async (req, res) => {
+  try {
+    const linear = getLinearClient();
+    if (!linear) {
+      return res.status(500).json({ error: "LINEAR_API_KEY not configured" });
+    }
+    const mapper = new ProjectChannelMapper({ linearClient: linear });
+    const summary = await mapper.getSummary();
+    res.json(summary);
+  } catch (err) {
+    console.error("Error fetching Slack projects:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Analyze a project (Slack + Linear combined)
+app.get("/api/slack/analyze/:projectId", async (req, res) => {
+  try {
+    const analyzer = getProjectAnalyzer();
+    if (!analyzer) {
+      return res.status(500).json({ error: "Slack or Linear not configured" });
+    }
+    const daysBack = parseInt(req.query.days) || 14;
+    const analysis = await analyzer.analyzeProject(req.params.projectId, {
+      daysBack,
+      includeThreads: true,
+    });
+    res.json({
+      success: true,
+      ...analysis,
+      summaryText: analyzer.generateSummaryText(analysis),
+      kpiData: analyzer.generateKPIData(analysis),
+    });
+  } catch (err) {
+    console.error("Error analyzing project:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
