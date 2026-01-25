@@ -36,6 +36,51 @@ const {
   formatPodsListBox,
   formatSummaryBox,
 } = require("./tableFormatter");
+const { SlackClient } = require("./slackClient");
+const { LinearClient } = require("./linearClient");
+const { ProjectChannelMapper } = require("./projectChannelMapper");
+const { ProjectAnalyzer } = require("./projectAnalyzer");
+
+// Initialize Slack/Linear clients (lazy)
+let _slackClient = null;
+let _linearClientForSlack = null;
+let _projectAnalyzer = null;
+let _channelMapper = null;
+
+function getSlackClient() {
+  if (!_slackClient && process.env.SLACK_BOT_TOKEN) {
+    _slackClient = new SlackClient({ botToken: process.env.SLACK_BOT_TOKEN });
+  }
+  return _slackClient;
+}
+
+function getLinearClientForSlack() {
+  if (!_linearClientForSlack && process.env.LINEAR_API_KEY) {
+    _linearClientForSlack = new LinearClient({ apiKey: process.env.LINEAR_API_KEY });
+  }
+  return _linearClientForSlack;
+}
+
+function getChannelMapper() {
+  if (!_channelMapper) {
+    const linear = getLinearClientForSlack();
+    if (linear) {
+      _channelMapper = new ProjectChannelMapper({ linearClient: linear });
+    }
+  }
+  return _channelMapper;
+}
+
+function getProjectAnalyzer() {
+  if (!_projectAnalyzer) {
+    const slack = getSlackClient();
+    const linear = getLinearClientForSlack();
+    if (slack && linear) {
+      _projectAnalyzer = new ProjectAnalyzer({ linearClient: linear, slackClient: slack });
+    }
+  }
+  return _projectAnalyzer;
+}
 
 // ============== SNAPSHOT-BASED FUNCTIONS (existing) ==============
 
@@ -731,14 +776,41 @@ function getHealthStatus(score) {
 
 /**
  * Fetch and summarize comments from all active projects in a pod
+ * Includes both Linear comments AND Slack messages for projects with channel IDs
  */
 async function fetchPodCommentsSummary(podName, projects) {
   const activeProjects = projects.filter(p => p.normalizedState === "in_flight").slice(0, 5);
   if (activeProjects.length === 0) return null;
 
   const allComments = [];
+  const allSlackMessages = [];
+  let hasSlackData = false;
 
+  // Get channel mapper for Slack data
+  const channelMapper = getChannelMapper();
+  const slackClient = getSlackClient();
+  let projectChannelMap = {};
+
+  // Build mapping of project names to channel IDs if Slack is configured
+  if (channelMapper && slackClient) {
+    try {
+      const projectsWithChannels = await channelMapper.getProjectsWithChannels();
+      for (const entry of projectsWithChannels) {
+        projectChannelMap[entry.project.name.toLowerCase()] = {
+          channelId: entry.channelId,
+          projectId: entry.project.id,
+        };
+      }
+    } catch (e) {
+      console.warn("Failed to load project-channel mapping:", e.message);
+    }
+  }
+
+  // Fetch Linear comments and Slack messages in parallel for each project
   for (const project of activeProjects) {
+    const projectNameLower = project.name.toLowerCase();
+
+    // Fetch Linear comments
     try {
       const commentsResult = await getLiveComments(podName, project.name, 7);
       if (commentsResult.success && commentsResult.comments.length > 0) {
@@ -750,17 +822,66 @@ async function fetchPodCommentsSummary(podName, projects) {
     } catch (e) {
       // Skip failed fetches
     }
+
+    // Fetch Slack messages if project has a channel
+    if (slackClient && projectChannelMap[projectNameLower]) {
+      const { channelId } = projectChannelMap[projectNameLower];
+      try {
+        // Get messages from last 7 days
+        const oldest = String((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000);
+        const messages = await slackClient.getAllMessages(channelId, { oldest, maxMessages: 30 });
+
+        if (messages && messages.length > 0) {
+          hasSlackData = true;
+          // Filter out bot messages and system messages
+          const humanMessages = messages.filter(m =>
+            !m.bot_id && m.type === "message" && m.text && m.text.length > 0
+          );
+
+          if (humanMessages.length > 0) {
+            allSlackMessages.push({
+              project: project.name,
+              messages: humanMessages.slice(0, 10).map(m => ({
+                text: m.text.substring(0, 200),
+                user: m.user || "Unknown",
+                ts: m.ts,
+              })),
+            });
+          }
+        }
+      } catch (e) {
+        console.warn(`Failed to fetch Slack messages for ${project.name}:`, e.message);
+      }
+    }
   }
 
-  if (allComments.length === 0) return null;
+  if (allComments.length === 0 && allSlackMessages.length === 0) return null;
 
   // Build combined text for summarization
   let combinedText = "";
-  for (const { project, comments } of allComments) {
-    const shortName = project.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
-    combinedText += `\n### ${shortName}\n`;
-    for (const c of comments) {
-      combinedText += `- ${c.author}: ${c.body.substring(0, 200)}\n`;
+  const sources = [];
+
+  if (allComments.length > 0) {
+    sources.push("Linear");
+    combinedText += "\n## LINEAR COMMENTS\n";
+    for (const { project, comments } of allComments) {
+      const shortName = project.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
+      combinedText += `\n### ${shortName}\n`;
+      for (const c of comments) {
+        combinedText += `- ${c.author}: ${c.body.substring(0, 200)}\n`;
+      }
+    }
+  }
+
+  if (allSlackMessages.length > 0) {
+    sources.push("Slack");
+    combinedText += "\n## SLACK DISCUSSIONS\n";
+    for (const { project, messages } of allSlackMessages) {
+      const shortName = project.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
+      combinedText += `\n### ${shortName} (Slack)\n`;
+      for (const m of messages) {
+        combinedText += `- ${m.text}\n`;
+      }
     }
   }
 
@@ -769,7 +890,7 @@ async function fetchPodCommentsSummary(podName, projects) {
     const messages = [
       {
         role: "system",
-        content: `You are a project status summarizer. Summarize recent Linear comments PROJECT-WISE.
+        content: `You are a project status summarizer. Summarize recent discussions from Linear comments AND Slack messages PROJECT-WISE.
 
 Rules:
 - Output each project on its own line with format: "ProjectName: summary of that project"
@@ -777,24 +898,38 @@ Rules:
 - Keep each project summary to 1-2 sentences
 - Focus on: current work, blockers, and progress
 - Be factual and direct
+- Combine insights from both Linear and Slack if available
 
 Example output format:
 FTS Evals: Multiple engineers working on test cases, one PR in review with pending Sonar fixes.
-Data-Driven Cohorts: UI work ongoing with Users page targeted for completion today.
+Data-Driven Cohorts: UI work ongoing with Users page targeted for completion today. Slack discussions indicate alignment on API contracts.
 Dynamic Workflows: Tech spec largely complete, initial boilerplate work started.`
       },
-      { role: "user", content: `Recent comments from ${podName} pod:\n${combinedText}` },
+      { role: "user", content: `Recent discussions from ${podName} pod:\n${combinedText}` },
     ];
     const summary = await fuelixChat({ messages });
+
+    const totalComments = allComments.reduce((sum, p) => sum + p.comments.length, 0);
+    const totalSlackMsgs = allSlackMessages.reduce((sum, p) => sum + p.messages.length, 0);
+
     return {
-      commentCount: allComments.reduce((sum, p) => sum + p.comments.length, 0),
-      projectCount: allComments.length,
+      commentCount: totalComments,
+      slackMessageCount: totalSlackMsgs,
+      projectCount: Math.max(allComments.length, allSlackMessages.length),
+      hasSlackData,
+      sources: sources.join(" + "),
       summary: summary.trim().replace(/\*\*/g, "").replace(/^#+\s*/gm, ""),
     };
   } catch (e) {
+    const totalComments = allComments.reduce((sum, p) => sum + p.comments.length, 0);
+    const totalSlackMsgs = allSlackMessages.reduce((sum, p) => sum + p.messages.length, 0);
+
     return {
-      commentCount: allComments.reduce((sum, p) => sum + p.comments.length, 0),
-      projectCount: allComments.length,
+      commentCount: totalComments,
+      slackMessageCount: totalSlackMsgs,
+      projectCount: Math.max(allComments.length, allSlackMessages.length),
+      hasSlackData,
+      sources: sources.join(" + "),
       summary: null,
     };
   }
@@ -1026,7 +1161,18 @@ async function generatePodNarrative(podName) {
   if (commentsSummary) {
     out += `💬 RECENT DISCUSSIONS\n`;
     out += `${"─".repeat(60)}\n`;
-    out += `Analyzed ${commentsSummary.commentCount} comments from ${commentsSummary.projectCount} active projects:\n\n`;
+
+    // Build source description
+    let sourceDesc = "";
+    if (commentsSummary.commentCount > 0 && commentsSummary.slackMessageCount > 0) {
+      sourceDesc = `${commentsSummary.commentCount} Linear comments + ${commentsSummary.slackMessageCount} Slack messages`;
+    } else if (commentsSummary.commentCount > 0) {
+      sourceDesc = `${commentsSummary.commentCount} Linear comments`;
+    } else if (commentsSummary.slackMessageCount > 0) {
+      sourceDesc = `${commentsSummary.slackMessageCount} Slack messages`;
+    }
+
+    out += `Analyzed ${sourceDesc} from ${commentsSummary.projectCount} active projects:\n\n`;
     if (commentsSummary.summary) {
       out += `${commentsSummary.summary}\n`;
     } else {
@@ -1045,7 +1191,11 @@ async function generatePodNarrative(podName) {
 
   // ============== FOOTER ==============
   out += `${"─".repeat(60)}\n`;
-  out += `Source: LIVE from Linear | Generated: ${projectsResult.fetchedAt}`;
+
+  // Determine source string based on whether Slack data was fetched
+  const hasSlack = commentsSummary && commentsSummary.hasSlackData;
+  const sourceStr = hasSlack ? "Linear + Slack" : "Linear";
+  out += `Source: LIVE from ${sourceStr} | Generated: ${projectsResult.fetchedAt}`;
 
   return out;
 }
