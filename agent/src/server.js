@@ -28,7 +28,7 @@ app.get("/api/health", (req, res) => {
 
 // Main question endpoint
 app.post("/api/ask", async (req, res) => {
-  const { question } = req.body;
+  const { question, mobile } = req.body;
 
   if (!question || typeof question !== "string") {
     return res.status(400).json({
@@ -39,7 +39,8 @@ app.post("/api/ask", async (req, res) => {
 
   try {
     // Use the existing answerer which returns grounded data
-    const response = await answer(question.trim(), null);
+    // Pass mobile flag for simplified output format
+    const response = await answer(question.trim(), null, { mobile: !!mobile });
 
     res.json({
       success: true,

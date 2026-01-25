@@ -1000,6 +1000,125 @@ Rules:
 }
 
 /**
+ * Generate MOBILE-FRIENDLY narrative for a pod
+ * Uses simple text format instead of ASCII tables
+ */
+async function generateMobilePodNarrative(pod, projectCount, stats, projects, podDelData, currentCycle, cycleDels, issueStats, healthScore, healthStatus, fetchedAt) {
+  let out = "";
+
+  // Clean up project names
+  const cleanName = (name) => name
+    .replace(/^Q1 2026\s*:\s*/i, "")
+    .replace(/^Q1 26\s*-\s*/i, "")
+    .replace(/^\[Q1 2026 Project\]-?/i, "")
+    .replace(/^\[Q1 Project 2026\]-?/i, "");
+
+  // ============== HEADER ==============
+  out += `${healthStatus.emoji} ${pod}\n`;
+  out += `━━━━━━━━━━━━━━━━━━━━\n`;
+  out += `Score: ${healthScore}% | ${healthStatus.text}\n\n`;
+
+  // ============== OVERVIEW ==============
+  out += `📊 OVERVIEW\n`;
+  out += `• Projects: ${projectCount}\n`;
+  out += `• Done: ${stats.done}\n`;
+  out += `• In-Flight: ${stats.in_flight}\n`;
+  out += `• Not Started: ${stats.not_started}\n`;
+
+  if (podDelData) {
+    out += `\n📦 DELs (${currentCycle})\n`;
+    out += `• Committed: ${podDelData.committed}\n`;
+    out += `• Completed: ${podDelData.completed}\n`;
+    out += `• Delivery: ${podDelData.deliveryPct}\n`;
+  }
+
+  if (issueStats.blockers > 0 || issueStats.risks > 0) {
+    out += `\n⚠️ ALERTS\n`;
+    if (issueStats.blockers > 0) out += `• Blockers: ${issueStats.blockers}\n`;
+    if (issueStats.risks > 0) out += `• Risks: ${issueStats.risks}\n`;
+  }
+
+  // ============== PROJECTS ==============
+  if (projectCount > 0) {
+    const inFlight = projects.filter(p => p.normalizedState === "in_flight");
+    const done = projects.filter(p => p.normalizedState === "done");
+    const notStarted = projects.filter(p => p.normalizedState === "not_started");
+
+    if (inFlight.length > 0) {
+      out += `\n🔄 IN-FLIGHT (${inFlight.length})\n`;
+      inFlight.forEach(p => {
+        out += `• ${cleanName(p.name)}\n`;
+        if (p.lead) out += `  Lead: ${p.lead}\n`;
+      });
+    }
+
+    if (done.length > 0) {
+      out += `\n✅ DONE (${done.length})\n`;
+      done.forEach(p => {
+        out += `• ${cleanName(p.name)}\n`;
+      });
+    }
+
+    if (notStarted.length > 0 && notStarted.length <= 5) {
+      out += `\n⏳ NOT STARTED (${notStarted.length})\n`;
+      notStarted.forEach(p => {
+        out += `• ${cleanName(p.name)}\n`;
+      });
+    } else if (notStarted.length > 5) {
+      out += `\n⏳ NOT STARTED: ${notStarted.length} projects\n`;
+    }
+  }
+
+  // ============== DEL TRACKING ==============
+  if (cycleDels.length > 0) {
+    const pendingDels = cycleDels.filter(d => !d.isCompleted);
+    const completedDels = cycleDels.filter(d => d.isCompleted);
+
+    if (pendingDels.length > 0) {
+      out += `\n⚠️ PENDING DELs (${pendingDels.length})\n`;
+      pendingDels.slice(0, 5).forEach(d => {
+        out += `• ${d.identifier}: ${d.title}\n`;
+        out += `  ${d.assignee} | ${d.state}\n`;
+      });
+      if (pendingDels.length > 5) {
+        out += `  ...and ${pendingDels.length - 5} more\n`;
+      }
+    }
+
+    if (completedDels.length > 0) {
+      out += `\n✅ COMPLETED DELs (${completedDels.length})\n`;
+      completedDels.slice(0, 3).forEach(d => {
+        out += `• ${d.identifier}: ${d.title}\n`;
+      });
+      if (completedDels.length > 3) {
+        out += `  ...and ${completedDels.length - 3} more\n`;
+      }
+    }
+  }
+
+  // ============== COMMENTS & INSIGHTS ==============
+  const commentsSummary = await fetchPodCommentsSummary(pod, projects);
+  if (commentsSummary && commentsSummary.summary) {
+    out += `\n💬 DISCUSSIONS\n`;
+    out += `${commentsSummary.summary}\n`;
+  }
+
+  const insights = await generatePodInsights(pod, stats, podDelData, issueStats, cycleDels, projects);
+  if (insights) {
+    out += `\n💡 INSIGHTS\n`;
+    out += `${insights}\n`;
+  }
+
+  // ============== FOOTER ==============
+  const hasSlack = commentsSummary && commentsSummary.hasSlackData;
+  const sourceStr = hasSlack ? "Linear+Slack" : "Linear";
+  out += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+  out += `${sourceStr} | ${formatToIST(fetchedAt)}`;
+
+  return out;
+}
+
+/**
  * Generate comprehensive narrative summary for a single pod
  * Output includes:
  * a) Health score and overview
@@ -1008,7 +1127,7 @@ Rules:
  * d) LLM-summarized comments
  * e) Smart insights
  */
-async function generatePodNarrative(podName) {
+async function generatePodNarrative(podName, isMobile = false) {
   // Get live pod data
   const projectsResult = await getLiveProjects(podName);
 
@@ -1048,6 +1167,11 @@ async function generatePodNarrative(podName) {
   // Calculate health score
   const healthScore = calculateHealthScore(stats, podDelData, issueStats, projects);
   const healthStatus = getHealthStatus(healthScore);
+
+  // ============== MOBILE FORMAT ==============
+  if (isMobile) {
+    return await generateMobilePodNarrative(pod, projectCount, stats, projects, podDelData, currentCycle, cycleDels, issueStats, healthScore, healthStatus, projectsResult.fetchedAt);
+  }
 
   let out = "";
 
@@ -1228,9 +1352,11 @@ async function generatePodNarrative(podName) {
  * Answer a question using live data or snapshot
  * @param {string} question - User question
  * @param {object} snapshot - Snapshot data (optional, for fallback)
+ * @param {object} options - Options { mobile: boolean }
  */
-async function answer(question, snapshot) {
+async function answer(question, snapshot, options = {}) {
   const cmd = parseCommand(question);
+  const isMobile = options.mobile || false;
 
   // Handle explicit commands first
   switch (cmd.type) {
@@ -1272,7 +1398,7 @@ async function answer(question, snapshot) {
 
     case "pod_narrative": {
       // Generate narrative summary for a single pod
-      return await generatePodNarrative(cmd.podName);
+      return await generatePodNarrative(cmd.podName, isMobile);
     }
 
     case "del_kpi": {

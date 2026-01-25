@@ -438,6 +438,12 @@
     const input = document.getElementById('questionInput');
     const btn = document.getElementById('askBtn');
 
+    // Detect if user is on mobile device
+    function isMobile() {
+      return window.innerWidth <= 768 ||
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+
     function addMessage(text, type) {
       const msg = document.createElement('div');
       msg.className = `message ${type}`;
@@ -476,10 +482,11 @@
       const loadingMsg = addMessage('Fetching data from Linear...', 'assistant loading');
 
       try {
+        // Pass mobile flag for simplified output on small screens
         const res = await fetch('/api/ask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question })
+          body: JSON.stringify({ question, mobile: isMobile() })
         });
 
         const data = await res.json();
