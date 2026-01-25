@@ -233,6 +233,150 @@
     .message th {
       background: #f5f5f5;
     }
+
+    /* ============== MOBILE RESPONSIVE ============== */
+    @media (max-width: 768px) {
+      header {
+        padding: 12px 16px;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      header h1 {
+        font-size: 16px;
+      }
+
+      .charts-link {
+        padding: 6px 10px;
+        font-size: 11px;
+        margin-left: 0;
+        margin-right: 4px;
+      }
+
+      .charts-link svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      header .status {
+        font-size: 10px;
+        order: -1;
+        width: 100%;
+        justify-content: flex-end;
+      }
+
+      .chat-container {
+        padding: 12px;
+        gap: 12px;
+      }
+
+      .message {
+        max-width: 100%;
+        padding: 12px;
+        font-size: 12px;
+        overflow-x: auto;
+      }
+
+      .message.assistant {
+        font-size: 11px;
+        line-height: 1.4;
+        /* Allow horizontal scroll for tables */
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      /* Make ASCII tables scrollable */
+      .message.assistant pre,
+      .message.assistant code {
+        white-space: pre;
+        overflow-x: auto;
+        display: block;
+      }
+
+      .greeting {
+        padding: 16px;
+      }
+
+      .greeting h2 {
+        font-size: 16px;
+      }
+
+      .greeting p {
+        font-size: 12px;
+      }
+
+      .quick-actions {
+        padding: 8px 12px;
+        gap: 6px;
+      }
+
+      .action-label {
+        font-size: 10px;
+        width: 100%;
+        margin-bottom: 4px;
+      }
+
+      .quick-btn {
+        padding: 6px 10px;
+        font-size: 11px;
+        border-radius: 16px;
+      }
+
+      .input-area {
+        padding: 12px;
+        gap: 8px;
+      }
+
+      #questionInput {
+        padding: 10px 12px;
+        font-size: 14px;
+      }
+
+      #askBtn {
+        padding: 10px 16px;
+        font-size: 14px;
+      }
+
+      .message table {
+        font-size: 10px;
+        display: block;
+        overflow-x: auto;
+      }
+
+      .message th, .message td {
+        padding: 4px 6px;
+        white-space: nowrap;
+      }
+    }
+
+    /* Extra small screens */
+    @media (max-width: 480px) {
+      header h1 {
+        font-size: 14px;
+      }
+
+      .charts-link span {
+        display: none;
+      }
+
+      .charts-link {
+        padding: 8px;
+      }
+
+      .message.assistant {
+        font-size: 10px;
+        letter-spacing: -0.3px;
+      }
+
+      .quick-btn {
+        padding: 5px 8px;
+        font-size: 10px;
+      }
+
+      .action-label {
+        display: none;
+      }
+    }
   </style>
 </head>
 <body>
