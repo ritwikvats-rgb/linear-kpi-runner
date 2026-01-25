@@ -827,11 +827,11 @@ async function fetchPodCommentsSummary(podName, projects) {
     if (slackClient && projectChannelMap[projectNameLower]) {
       const { channelId } = projectChannelMap[projectNameLower];
       try {
-        // Get messages from last 7 days WITH thread replies
+        // Get messages from last 7 days WITH thread replies (no limits)
         const oldest = String((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000);
         const messages = await slackClient.getMessagesWithThreads(channelId, {
           oldest,
-          maxMessages: 30,
+          maxMessages: 100,
           includeThreads: true
         });
 
@@ -843,21 +843,21 @@ async function fetchPodCommentsSummary(podName, projects) {
           );
 
           if (humanMessages.length > 0) {
-            // Flatten messages and their thread replies
+            // Flatten messages and ALL their thread replies
             const flattenedMessages = [];
-            for (const m of humanMessages.slice(0, 10)) {
+            for (const m of humanMessages) {
               flattenedMessages.push({
-                text: m.text.substring(0, 200),
+                text: m.text.substring(0, 300),
                 user: m.user || "Unknown",
                 ts: m.ts,
                 isThread: false,
               });
-              // Include thread replies (up to 5 per message)
+              // Include ALL thread replies
               if (m.threadReplies && m.threadReplies.length > 0) {
-                for (const reply of m.threadReplies.slice(0, 5)) {
+                for (const reply of m.threadReplies) {
                   if (!reply.bot_id && reply.text) {
                     flattenedMessages.push({
-                      text: `↳ ${reply.text.substring(0, 150)}`,
+                      text: `↳ ${reply.text.substring(0, 300)}`,
                       user: reply.user || "Unknown",
                       ts: reply.ts,
                       isThread: true,
