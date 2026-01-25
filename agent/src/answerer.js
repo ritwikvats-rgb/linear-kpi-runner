@@ -843,21 +843,21 @@ async function fetchPodCommentsSummary(podName, projects) {
           );
 
           if (humanMessages.length > 0) {
-            // Flatten messages and ALL their thread replies
+            // Flatten messages and ALL their thread replies - FULL TEXT, no truncation
             const flattenedMessages = [];
             for (const m of humanMessages) {
               flattenedMessages.push({
-                text: m.text.substring(0, 300),
+                text: m.text,
                 user: m.user || "Unknown",
                 ts: m.ts,
                 isThread: false,
               });
-              // Include ALL thread replies
+              // Include ALL thread replies with FULL TEXT
               if (m.threadReplies && m.threadReplies.length > 0) {
                 for (const reply of m.threadReplies) {
                   if (!reply.bot_id && reply.text) {
                     flattenedMessages.push({
-                      text: `↳ ${reply.text.substring(0, 300)}`,
+                      text: `↳ ${reply.text}`,
                       user: reply.user || "Unknown",
                       ts: reply.ts,
                       isThread: true,
@@ -892,7 +892,7 @@ async function fetchPodCommentsSummary(podName, projects) {
       const shortName = project.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
       combinedText += `\n### ${shortName}\n`;
       for (const c of comments) {
-        combinedText += `- ${c.author}: ${c.body.substring(0, 200)}\n`;
+        combinedText += `- ${c.author}: ${c.body}\n`;
       }
     }
   }
