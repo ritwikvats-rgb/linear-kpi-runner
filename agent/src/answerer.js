@@ -739,53 +739,27 @@ async function generateAllPodsSummary() {
  * Based on: delivery %, blockers, activity, progress
  */
 function calculateHealthScore(stats, podDelData, issueStats, projects) {
-  let score = 100;
+  const totalProjects = (stats.done || 0) + (stats.in_flight || 0) + (stats.not_started || 0);
 
-  // Deduct for low delivery % (max -30)
-  if (podDelData && podDelData.committed > 0) {
-    const deliveryPct = parseInt(podDelData.deliveryPct) || 0;
-    if (deliveryPct < 50) score -= 30;
-    else if (deliveryPct < 70) score -= 20;
-    else if (deliveryPct < 80) score -= 10;
+  // Health score = Completion percentage (completed / total * 100)
+  // Simple, honest, and immediately understandable
+  if (totalProjects === 0) {
+    return 0;
   }
 
-  // Deduct for blockers (max -25)
-  if (issueStats.blockers > 0) {
-    score -= Math.min(25, issueStats.blockers * 8);
-  }
-
-  // Deduct for risks (max -15)
-  if (issueStats.risks > 0) {
-    score -= Math.min(15, issueStats.risks * 5);
-  }
-
-  // Deduct for spillover (max -15)
-  if (podDelData && podDelData.spillover > 0) {
-    score -= Math.min(15, podDelData.spillover * 5);
-  }
-
-  // Bonus for completed work
-  if (stats.done > 0) {
-    const completionRate = stats.done / (stats.done + stats.in_flight + stats.not_started);
-    score += Math.round(completionRate * 10);
-  }
-
-  // Deduct if nothing in flight when work remains
-  if (stats.in_flight === 0 && stats.not_started > 0) {
-    score -= 10;
-  }
-
-  return Math.max(0, Math.min(100, score));
+  const completionPct = Math.round((stats.done / totalProjects) * 100);
+  return completionPct;
 }
 
 /**
- * Get health status emoji and text
+ * Get health status emoji and text based on completion %
  */
 function getHealthStatus(score) {
-  if (score >= 85) return { emoji: "🟢", text: "Excellent", color: "green" };
-  if (score >= 70) return { emoji: "🟡", text: "Good", color: "yellow" };
-  if (score >= 50) return { emoji: "🟠", text: "Needs Attention", color: "orange" };
-  return { emoji: "🔴", text: "At Risk", color: "red" };
+  if (score >= 80) return { emoji: "🟢", text: "Excellent", color: "green" };
+  if (score >= 50) return { emoji: "🟡", text: "Good Progress", color: "yellow" };
+  if (score >= 25) return { emoji: "🟠", text: "In Progress", color: "orange" };
+  if (score > 0) return { emoji: "🟠", text: "Getting Started", color: "orange" };
+  return { emoji: "🔴", text: "Not Started", color: "red" };
 }
 
 /**
