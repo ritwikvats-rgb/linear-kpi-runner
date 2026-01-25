@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>KPI Dashboard - DL & Feature Level</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
   <style>
     :root {
       --bg-primary: #0f0f1a;
@@ -128,6 +129,215 @@
       50% { opacity: 0.5; }
     }
 
+    /* ============== IRON MAN HUD STYLES ============== */
+
+    /* Scan line effect */
+    @keyframes scanLine {
+      0% { top: -100%; }
+      100% { top: 200%; }
+    }
+
+    .hud-scan::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.8), rgba(236, 72, 153, 0.8), transparent);
+      animation: scanLine 3s linear infinite;
+      pointer-events: none;
+    }
+
+    /* Glowing border animation */
+    @keyframes borderGlow {
+      0%, 100% {
+        box-shadow: 0 0 5px rgba(99, 102, 241, 0.3), inset 0 0 5px rgba(99, 102, 241, 0.1);
+      }
+      50% {
+        box-shadow: 0 0 20px rgba(99, 102, 241, 0.6), inset 0 0 10px rgba(99, 102, 241, 0.2);
+      }
+    }
+
+    /* HUD corner brackets */
+    .hud-corners {
+      position: relative;
+    }
+
+    .hud-corners::before,
+    .hud-corners::after {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(99, 102, 241, 0.6);
+      pointer-events: none;
+    }
+
+    .hud-corners::before {
+      top: -1px;
+      left: -1px;
+      border-right: none;
+      border-bottom: none;
+    }
+
+    .hud-corners::after {
+      bottom: -1px;
+      right: -1px;
+      border-left: none;
+      border-top: none;
+    }
+
+    /* Animated gradient border */
+    @keyframes gradientBorder {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .gradient-border {
+      position: relative;
+      background: var(--glass-bg);
+    }
+
+    .gradient-border::before {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      background: linear-gradient(45deg, #6366f1, #ec4899, #8b5cf6, #22c55e, #6366f1);
+      background-size: 300% 300%;
+      animation: gradientBorder 4s ease infinite;
+      border-radius: inherit;
+      z-index: -1;
+      opacity: 0.5;
+    }
+
+    /* Number counter animation */
+    @keyframes countUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .count-up {
+      animation: countUp 0.5s ease-out forwards;
+    }
+
+    /* Holographic shimmer */
+    @keyframes holographic {
+      0% { background-position: -200% center; }
+      100% { background-position: 200% center; }
+    }
+
+    .holo-text {
+      background: linear-gradient(
+        90deg,
+        var(--accent-blue) 0%,
+        var(--accent-pink) 25%,
+        var(--accent-purple) 50%,
+        var(--accent-teal) 75%,
+        var(--accent-blue) 100%
+      );
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: holographic 3s linear infinite;
+    }
+
+    /* Typewriter effect for insights */
+    @keyframes typewriter {
+      from { width: 0; }
+      to { width: 100%; }
+    }
+
+    .typewriter {
+      overflow: hidden;
+      white-space: nowrap;
+      animation: typewriter 2s steps(40) forwards;
+    }
+
+    /* Card entrance animations */
+    @keyframes cardSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(30px) scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .card-animate {
+      animation: cardSlideIn 0.6s ease-out forwards;
+      opacity: 0;
+    }
+
+    /* Stagger delays for cards */
+    .card-animate:nth-child(1) { animation-delay: 0.1s; }
+    .card-animate:nth-child(2) { animation-delay: 0.2s; }
+    .card-animate:nth-child(3) { animation-delay: 0.3s; }
+    .card-animate:nth-child(4) { animation-delay: 0.4s; }
+
+    /* Pulsing glow effect */
+    @keyframes pulseGlow {
+      0%, 100% {
+        filter: drop-shadow(0 0 5px currentColor);
+      }
+      50% {
+        filter: drop-shadow(0 0 20px currentColor) drop-shadow(0 0 40px currentColor);
+      }
+    }
+
+    .pulse-glow {
+      animation: pulseGlow 2s ease-in-out infinite;
+    }
+
+    /* HUD data readout effect */
+    @keyframes dataReadout {
+      0% { opacity: 0.3; }
+      50% { opacity: 1; }
+      100% { opacity: 0.3; }
+    }
+
+    .data-readout::before {
+      content: '▶';
+      margin-right: 8px;
+      color: var(--accent-green);
+      animation: dataReadout 1s ease-in-out infinite;
+    }
+
+    /* Hexagon pattern background */
+    .hex-pattern {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='49' viewBox='0 0 28 49'%3E%3Cg fill-rule='evenodd'%3E%3Cg fill='%236366f1' fill-opacity='0.03'%3E%3Cpath d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.9v12.7l10.99 6.34 11-6.35V17.9l-11-6.34L3 17.9zM0 15l12.98-7.5V0h-2v6.35L0 12.69v2.3zm0 18.5L12.98 41v8h-2v-6.85L0 35.81v-2.3zM15 0v7.5L27.99 15H28v-2.31h-.01L17 6.35V0h-2zm0 49v-8l12.99-7.5H28v2.31h-.01L17 42.15V49h-2z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+
+    /* Futuristic line decorations */
+    .hud-line {
+      position: relative;
+    }
+
+    .hud-line::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent-blue), var(--accent-purple), transparent);
+    }
+
+    /* Blinking cursor */
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    .cursor::after {
+      content: '|';
+      animation: blink 1s infinite;
+      color: var(--accent-blue);
+    }
+
     /* Tab Navigation */
     .tab-container {
       position: relative;
@@ -238,13 +448,52 @@
       border-radius: 16px;
       padding: 20px;
       text-align: center;
-      transition: all 0.2s;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      animation: borderGlow 3s ease-in-out infinite;
+    }
+
+    /* HUD corner decorations */
+    .hero-card::before,
+    .hero-card::after {
+      content: '';
+      position: absolute;
+      width: 15px;
+      height: 15px;
+      border: 2px solid rgba(99, 102, 241, 0.5);
+      pointer-events: none;
+      transition: all 0.3s;
+    }
+
+    .hero-card::before {
+      top: 8px;
+      left: 8px;
+      border-right: none;
+      border-bottom: none;
+    }
+
+    .hero-card::after {
+      bottom: 8px;
+      right: 8px;
+      border-left: none;
+      border-top: none;
+    }
+
+    .hero-card:hover::before,
+    .hero-card:hover::after {
+      border-color: var(--accent-pink);
+      width: 25px;
+      height: 25px;
     }
 
     .hero-card:hover {
-      transform: translateY(-4px);
-      border-color: rgba(255, 255, 255, 0.2);
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+      transform: translateY(-8px) scale(1.02);
+      border-color: rgba(99, 102, 241, 0.5);
+      box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.4),
+        0 0 30px rgba(99, 102, 241, 0.2),
+        inset 0 0 30px rgba(99, 102, 241, 0.05);
     }
 
     .hero-card.highlight {
@@ -564,7 +813,10 @@
     }
   </style>
 </head>
-<body>
+<body class="hex-pattern">
+  <!-- HUD Scan Line Overlay -->
+  <div class="hud-overlay hud-scan" style="position: fixed; inset: 0; pointer-events: none; z-index: 9999; overflow: hidden;"></div>
+
   <!-- Navigation -->
   <nav class="nav-bar">
     <div class="nav-brand">
@@ -623,32 +875,32 @@
   <div class="tab-content active" id="dl-kpi">
     <div class="section-header">
       <div>
-        <h1 class="section-title">
-          DEL Metrics
-          <span class="badge" id="dlCycleBadge">C2</span>
+        <h1 class="section-title hud-line">
+          <span class="holo-text">DEL Metrics</span>
+          <span class="badge pulse-glow" id="dlCycleBadge">C2</span>
         </h1>
-        <p class="section-subtitle">Cycle 2 baseline and weekly tracking (Jan 20 - Feb 2, 2026)</p>
+        <p class="section-subtitle data-readout">Cycle 2 baseline and weekly tracking (Jan 20 - Feb 2, 2026)</p>
       </div>
     </div>
 
     <!-- DEL Hero Metrics -->
     <div class="hero-metrics" id="dlHeroMetrics">
-      <div class="hero-card">
-        <div class="hero-value" id="dlDeliveryPct">--</div>
+      <div class="hero-card card-animate">
+        <div class="hero-value holo-text" id="dlDeliveryPct">--</div>
         <div class="hero-label">Delivery Rate</div>
         <div class="hero-sublabel" id="dlDeliveryDetail">Loading...</div>
       </div>
-      <div class="hero-card">
+      <div class="hero-card card-animate">
         <div class="hero-value" id="dlCommitted">--</div>
         <div class="hero-label">Committed</div>
         <div class="hero-sublabel">C2 Baseline</div>
       </div>
-      <div class="hero-card">
+      <div class="hero-card card-animate">
         <div class="hero-value" id="dlCompleted">--</div>
         <div class="hero-label">Completed</div>
         <div class="hero-sublabel" id="dlCompletedDetail">Done this cycle</div>
       </div>
-      <div class="hero-card highlight">
+      <div class="hero-card highlight card-animate">
         <div class="hero-value" id="dlPending">--</div>
         <div class="hero-label">Pending</div>
         <div class="hero-sublabel">To be delivered</div>
@@ -715,32 +967,32 @@
   <div class="tab-content" id="feature-kpi">
     <div class="section-header">
       <div>
-        <h1 class="section-title">
-          Feature Execution
-          <span class="badge">All Pods</span>
+        <h1 class="section-title hud-line">
+          <span class="holo-text">Feature Execution</span>
+          <span class="badge pulse-glow">All Pods</span>
         </h1>
-        <p class="section-subtitle">Feature-level analysis across the entire org/pods</p>
+        <p class="section-subtitle data-readout">Feature-level analysis across the entire org/pods</p>
       </div>
     </div>
 
     <!-- Feature Hero Metrics -->
     <div class="hero-metrics" id="featureHeroMetrics">
-      <div class="hero-card">
+      <div class="hero-card card-animate">
         <div class="hero-value" id="featureTotal">--</div>
         <div class="hero-label">Total Features</div>
         <div class="hero-sublabel">Planned across org</div>
       </div>
-      <div class="hero-card highlight">
-        <div class="hero-value" id="featureDone">--</div>
+      <div class="hero-card highlight card-animate">
+        <div class="hero-value holo-text" id="featureDone">--</div>
         <div class="hero-label">Done</div>
         <div class="hero-sublabel" id="featureDonePct">--</div>
       </div>
-      <div class="hero-card">
+      <div class="hero-card card-animate">
         <div class="hero-value" id="featureInFlight">--</div>
         <div class="hero-label">In Flight</div>
         <div class="hero-sublabel">Active work</div>
       </div>
-      <div class="hero-card">
+      <div class="hero-card card-animate">
         <div class="hero-value" id="featureNotStarted">--</div>
         <div class="hero-label">Not Started</div>
         <div class="hero-sublabel">Backlog</div>
@@ -869,6 +1121,32 @@
     Chart.defaults.color = 'rgba(255, 255, 255, 0.7)';
     Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.1)';
 
+    // Register datalabels plugin
+    Chart.register(ChartDataLabels);
+
+    // Animated counter function
+    function animateValue(element, start, end, duration, suffix = '') {
+      const startTime = performance.now();
+
+      function update(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        // Easing function (ease-out cubic)
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        const current = Math.floor(start + (end - start) * easeOut);
+
+        element.textContent = current + suffix;
+        element.classList.add('count-up');
+
+        if (progress < 1) {
+          requestAnimationFrame(update);
+        }
+      }
+
+      requestAnimationFrame(update);
+    }
+
     // Tab switching
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -904,15 +1182,15 @@
       const cycleKpi = data.deliveryChart.data;
       const heroMetrics = data.heroMetrics;
 
-      // Update hero metrics
-      document.getElementById('dlDeliveryPct').textContent = `${heroMetrics.overallDeliveryPct}%`;
+      // Animated hero metrics
+      animateValue(document.getElementById('dlDeliveryPct'), 0, heroMetrics.overallDeliveryPct, 1500, '%');
       document.getElementById('dlDeliveryDetail').textContent = `${heroMetrics.totalCompleted} of ${heroMetrics.totalCommitted}`;
-      document.getElementById('dlCommitted').textContent = heroMetrics.totalCommitted;
-      document.getElementById('dlCompleted').textContent = heroMetrics.totalCompleted;
-      document.getElementById('dlPending').textContent = heroMetrics.totalCommitted - heroMetrics.totalCompleted;
+      animateValue(document.getElementById('dlCommitted'), 0, heroMetrics.totalCommitted, 1200, '');
+      animateValue(document.getElementById('dlCompleted'), 0, heroMetrics.totalCompleted, 1000, '');
+      animateValue(document.getElementById('dlPending'), 0, heroMetrics.totalCommitted - heroMetrics.totalCompleted, 1300, '');
       document.getElementById('dlCycleBadge').textContent = currentCycle;
 
-      // Delivery bar chart
+      // Delivery bar chart with data labels
       const ctx1 = document.getElementById('dlDeliveryChart').getContext('2d');
       dlDeliveryChart = new Chart(ctx1, {
         type: 'bar',
@@ -922,6 +1200,8 @@
             label: 'Delivery %',
             data: cycleKpi.datasets[0].data,
             backgroundColor: cycleKpi.labels.map(l => POD_COLORS[l] || '#64748b'),
+            borderColor: cycleKpi.labels.map(l => POD_COLORS[l] || '#64748b'),
+            borderWidth: 1,
             borderRadius: 8,
             barThickness: 32,
           }]
@@ -930,10 +1210,28 @@
           indexAxis: 'y',
           responsive: true,
           maintainAspectRatio: false,
+          animation: {
+            duration: 1500,
+            easing: 'easeOutQuart',
+            delay: (ctx) => ctx.dataIndex * 100,
+          },
           plugins: {
             legend: { display: false },
+            datalabels: {
+              color: '#fff',
+              anchor: 'end',
+              align: 'end',
+              offset: 4,
+              font: { weight: 'bold', size: 12 },
+              formatter: (value) => value > 0 ? `${value}%` : '',
+              textShadow: '0 0 10px rgba(0,0,0,0.5)',
+            },
             tooltip: {
               backgroundColor: 'rgba(15, 15, 26, 0.95)',
+              borderColor: 'rgba(99, 102, 241, 0.3)',
+              borderWidth: 1,
+              padding: 12,
+              cornerRadius: 8,
               callbacks: {
                 label: (ctx) => {
                   const i = ctx.dataIndex;
@@ -957,7 +1255,7 @@
         }
       });
 
-      // Comparison grouped bar chart
+      // Comparison grouped bar chart with data labels
       const ctx2 = document.getElementById('dlComparisonChart').getContext('2d');
       dlComparisonChart = new Chart(ctx2, {
         type: 'bar',
@@ -968,12 +1266,16 @@
               label: 'Committed',
               data: data.deliveryChart.meta.committed,
               backgroundColor: 'rgba(99, 102, 241, 0.8)',
+              borderColor: '#6366f1',
+              borderWidth: 1,
               borderRadius: 6,
             },
             {
               label: 'Completed',
               data: data.deliveryChart.meta.completed,
               backgroundColor: 'rgba(34, 197, 94, 0.8)',
+              borderColor: '#22c55e',
+              borderWidth: 1,
               borderRadius: 6,
             }
           ]
@@ -981,9 +1283,26 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          animation: {
+            duration: 1500,
+            easing: 'easeOutQuart',
+            delay: (ctx) => ctx.dataIndex * 80,
+          },
           plugins: {
             legend: { position: 'top' },
-            tooltip: { backgroundColor: 'rgba(15, 15, 26, 0.95)' }
+            datalabels: {
+              color: '#fff',
+              anchor: 'end',
+              align: 'top',
+              offset: 2,
+              font: { weight: 'bold', size: 11 },
+              formatter: (value) => value > 0 ? value : '',
+            },
+            tooltip: {
+              backgroundColor: 'rgba(15, 15, 26, 0.95)',
+              borderColor: 'rgba(99, 102, 241, 0.3)',
+              borderWidth: 1,
+            }
           },
           scales: {
             y: { grid: { color: 'rgba(255, 255, 255, 0.05)' } },
@@ -1047,19 +1366,53 @@
 
       tableBody.innerHTML = tableHtml;
 
-      // Trend line chart
+      // Trend line chart with data labels on points
       const ctx3 = document.getElementById('dlTrendChart').getContext('2d');
+
+      // Enhance datasets with better styling
+      const enhancedTrendData = {
+        ...data.cycleTrendChart.data,
+        datasets: data.cycleTrendChart.data.datasets.map(ds => ({
+          ...ds,
+          borderWidth: 3,
+          pointRadius: 6,
+          pointHoverRadius: 10,
+          pointBackgroundColor: ds.borderColor,
+          pointBorderColor: '#0f0f1a',
+          pointBorderWidth: 2,
+          fill: true,
+          backgroundColor: `${ds.borderColor}20`,
+        }))
+      };
+
       dlTrendChart = new Chart(ctx3, {
         type: 'line',
-        data: data.cycleTrendChart.data,
+        data: enhancedTrendData,
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          animation: {
+            duration: 2000,
+            easing: 'easeOutQuart',
+          },
           interaction: { intersect: false, mode: 'index' },
           plugins: {
             legend: { position: 'top' },
+            datalabels: {
+              color: '#fff',
+              anchor: 'end',
+              align: 'top',
+              offset: 6,
+              font: { weight: 'bold', size: 10 },
+              backgroundColor: 'rgba(0,0,0,0.6)',
+              borderRadius: 4,
+              padding: { top: 2, bottom: 2, left: 4, right: 4 },
+              formatter: (value) => value !== null ? `${value}%` : '',
+            },
             tooltip: {
               backgroundColor: 'rgba(15, 15, 26, 0.95)',
+              borderColor: 'rgba(99, 102, 241, 0.3)',
+              borderWidth: 1,
               callbacks: {
                 label: (ctx) => ctx.raw !== null ? `${ctx.dataset.label}: ${ctx.raw}%` : null
               }
@@ -1083,27 +1436,53 @@
       const featureData = data.featureChart;
       const heroMetrics = data.heroMetrics;
 
-      // Update hero metrics
-      document.getElementById('featureTotal').textContent = heroMetrics.totalFeatures;
-      document.getElementById('featureDone').textContent = heroMetrics.featuresDone;
+      // Animated hero metrics
+      animateValue(document.getElementById('featureTotal'), 0, heroMetrics.totalFeatures, 1200, '');
+      animateValue(document.getElementById('featureDone'), 0, heroMetrics.featuresDone, 1000, '');
       document.getElementById('featureDonePct').textContent = `${featureData.meta.donePercentage}% complete`;
-      document.getElementById('featureInFlight').textContent = heroMetrics.featuresInFlight;
-      document.getElementById('featureNotStarted').textContent = heroMetrics.totalFeatures - heroMetrics.featuresDone - heroMetrics.featuresInFlight;
+      animateValue(document.getElementById('featureInFlight'), 0, heroMetrics.featuresInFlight, 1100, '');
+      animateValue(document.getElementById('featureNotStarted'), 0, heroMetrics.totalFeatures - heroMetrics.featuresDone - heroMetrics.featuresInFlight, 1300, '');
       document.getElementById('featureProgressBadge').textContent = `${heroMetrics.totalFeatures} total`;
 
-      // Feature donut chart
+      // Feature donut chart with center label and data labels
       const ctx4 = document.getElementById('featureDonutChart').getContext('2d');
       featureDonutChart = new Chart(ctx4, {
         type: 'doughnut',
-        data: featureData.data,
+        data: {
+          ...featureData.data,
+          datasets: [{
+            ...featureData.data.datasets[0],
+            borderWidth: 0,
+            hoverBorderWidth: 3,
+            hoverBorderColor: '#fff',
+            hoverOffset: 10,
+          }]
+        },
         options: {
           responsive: true,
           maintainAspectRatio: false,
           cutout: '65%',
+          animation: {
+            animateRotate: true,
+            animateScale: true,
+            duration: 1500,
+          },
           plugins: {
             legend: { position: 'bottom' },
+            datalabels: {
+              color: '#fff',
+              font: { weight: 'bold', size: 14 },
+              formatter: (value, ctx) => {
+                const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+                return value > 0 ? `${value}\n(${pct}%)` : '';
+              },
+              textAlign: 'center',
+            },
             tooltip: {
               backgroundColor: 'rgba(15, 15, 26, 0.95)',
+              borderColor: 'rgba(99, 102, 241, 0.3)',
+              borderWidth: 1,
               callbacks: {
                 label: (ctx) => {
                   const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
@@ -1135,7 +1514,7 @@
       // Actually, let's use the API to get per-pod feature data
       // For this demo, we'll estimate based on the total
 
-      // Stacked bar chart showing features by pod
+      // Stacked bar chart showing features by pod with data labels
       const ctx5 = document.getElementById('featureStackedChart').getContext('2d');
       featureStackedChart = new Chart(ctx5, {
         type: 'bar',
@@ -1144,31 +1523,51 @@
           datasets: [
             {
               label: 'Done',
-              data: [1, 0, 0, 0, 0, 0], // FTS has 1 done
-              backgroundColor: '#22c55e',
+              data: [1, 0, 0, 0, 0, 0],
+              backgroundColor: 'rgba(34, 197, 94, 0.9)',
+              borderColor: '#22c55e',
+              borderWidth: 1,
             },
             {
               label: 'In Flight',
-              data: [3, 0, 6, 2, 3, 0], // From actual data
-              backgroundColor: '#f59e0b',
+              data: [3, 0, 6, 2, 3, 0],
+              backgroundColor: 'rgba(245, 158, 11, 0.9)',
+              borderColor: '#f59e0b',
+              borderWidth: 1,
             },
             {
               label: 'Not Started',
-              data: [13, 8, 5, 4, 10, 1], // From actual data
-              backgroundColor: '#64748b',
+              data: [13, 8, 5, 4, 10, 1],
+              backgroundColor: 'rgba(100, 116, 139, 0.9)',
+              borderColor: '#64748b',
+              borderWidth: 1,
             }
           ]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          animation: {
+            duration: 1500,
+            easing: 'easeOutQuart',
+          },
           scales: {
             x: { stacked: true, grid: { display: false } },
             y: { stacked: true, grid: { color: 'rgba(255, 255, 255, 0.05)' } }
           },
           plugins: {
             legend: { position: 'top' },
-            tooltip: { backgroundColor: 'rgba(15, 15, 26, 0.95)' }
+            datalabels: {
+              color: '#fff',
+              font: { weight: 'bold', size: 10 },
+              formatter: (value) => value > 0 ? value : '',
+              display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0,
+            },
+            tooltip: {
+              backgroundColor: 'rgba(15, 15, 26, 0.95)',
+              borderColor: 'rgba(99, 102, 241, 0.3)',
+              borderWidth: 1,
+            }
           }
         }
       });
@@ -1248,25 +1647,53 @@
       document.getElementById('insightVelocity').textContent =
         `${totals.inFlight} features in flight across ${featureRows.filter(r => r.inFlight > 0).length} pods. 25% of planned features have active work.`;
 
-      // Pod Health Radar
+      // Pod Health Radar with enhanced styling
       const ctx6 = document.getElementById('podHealthChart').getContext('2d');
+
+      // Enhance radar datasets
+      const enhancedRadarData = {
+        ...data.podHealthChart.data,
+        datasets: data.podHealthChart.data.datasets.map(ds => ({
+          ...ds,
+          borderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 8,
+          pointBorderWidth: 2,
+          pointBorderColor: '#0f0f1a',
+        }))
+      };
+
       podHealthChart = new Chart(ctx6, {
         type: 'radar',
-        data: data.podHealthChart.data,
+        data: enhancedRadarData,
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          animation: {
+            duration: 1500,
+            easing: 'easeOutQuart',
+          },
           plugins: {
             legend: { position: 'bottom' },
-            tooltip: { backgroundColor: 'rgba(15, 15, 26, 0.95)' }
+            datalabels: {
+              display: false, // Disable for radar as it gets cluttered
+            },
+            tooltip: {
+              backgroundColor: 'rgba(15, 15, 26, 0.95)',
+              borderColor: 'rgba(99, 102, 241, 0.3)',
+              borderWidth: 1,
+            }
           },
           scales: {
             r: {
               min: 0,
               max: 100,
-              grid: { color: 'rgba(255, 255, 255, 0.1)' },
-              angleLines: { color: 'rgba(255, 255, 255, 0.1)' },
-              pointLabels: { color: 'rgba(255, 255, 255, 0.7)' },
+              grid: { color: 'rgba(99, 102, 241, 0.15)' },
+              angleLines: { color: 'rgba(99, 102, 241, 0.15)' },
+              pointLabels: {
+                color: 'rgba(255, 255, 255, 0.8)',
+                font: { size: 11, weight: '500' }
+              },
               ticks: { display: false }
             }
           }
