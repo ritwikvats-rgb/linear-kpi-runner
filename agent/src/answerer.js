@@ -855,7 +855,7 @@ async function fetchPodCommentsSummary(podName, projects) {
 
         const messages = await slackClient.getMessagesWithThreads(channelId, {
           oldest,
-          maxMessages: 500,  // Increased to get more historical messages
+          maxMessages: 10000,  // Essentially unlimited - fetch all messages
           includeThreads: true
         });
 
