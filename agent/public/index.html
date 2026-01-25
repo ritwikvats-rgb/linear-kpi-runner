@@ -266,8 +266,12 @@
   <div class="quick-actions">
     <span class="action-label">Quick:</span>
     <button class="quick-btn" data-question="What is going on across all pods?">All Pods</button>
-    <button class="quick-btn" data-question="Show DELs in cycle C1">C1 DELs</button>
     <button class="quick-btn" data-question="Show pending DELs">Pending DELs</button>
+  </div>
+
+  <div class="quick-actions" id="cycle-actions" style="border-top: none; padding-top: 0;">
+    <span class="action-label">Cycles:</span>
+    <!-- Cycle buttons will be dynamically generated -->
   </div>
 
   <div class="quick-actions pod-actions">
@@ -355,6 +359,66 @@
 
     // Focus input on load
     input.focus();
+
+    // Dynamic cycle buttons based on current date
+    function getCurrentCycle() {
+      const now = new Date();
+      const month = now.getMonth(); // 0-indexed (0=Jan, 1=Feb, 2=Mar)
+      const day = now.getDate();
+
+      // Q1 2026 cycles (Jan-Mar)
+      // C1: Jan 1-15, C2: Jan 16-31
+      // C3: Feb 1-15, C4: Feb 16-28/29
+      // C5: Mar 1-15, C6: Mar 16-31
+
+      if (month === 0) { // January
+        return day <= 15 ? 1 : 2;
+      } else if (month === 1) { // February
+        return day <= 15 ? 3 : 4;
+      } else if (month === 2) { // March
+        return day <= 15 ? 5 : 6;
+      }
+      // Default to C1 if outside Q1
+      return 1;
+    }
+
+    function generateCycleButtons() {
+      const cycleContainer = document.getElementById('cycle-actions');
+      const currentCycle = getCurrentCycle();
+
+      // Show current cycle and all previous cycles (completed ones)
+      // Plus next cycle if not at C6
+      let cyclesToShow = [];
+
+      // Add all cycles from C1 to current+1 (or C6 max)
+      for (let i = 1; i <= Math.min(currentCycle + 1, 6); i++) {
+        cyclesToShow.push(i);
+      }
+
+      // Generate buttons
+      cyclesToShow.forEach(cycle => {
+        const btn = document.createElement('button');
+        btn.className = 'quick-btn';
+        btn.dataset.question = `Show DELs in cycle C${cycle}`;
+        btn.textContent = `C${cycle} DELs`;
+
+        // Highlight current cycle
+        if (cycle === currentCycle) {
+          btn.style.background = '#1a1a2e';
+          btn.style.color = 'white';
+          btn.style.borderColor = '#1a1a2e';
+        }
+
+        btn.addEventListener('click', () => {
+          ask(btn.dataset.question);
+        });
+
+        cycleContainer.appendChild(btn);
+      });
+    }
+
+    // Generate cycle buttons on page load
+    generateCycleButtons();
   </script>
 </body>
 </html>
