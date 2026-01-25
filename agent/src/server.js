@@ -197,12 +197,12 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "../public/index.html"));
 });
 
-// Serve the unified KPI dashboard
+// Serve the HUD Command Center (main dashboard)
 app.get("/dashboard", (req, res) => {
-  res.sendFile(path.join(__dirname, "../public/kpi-dashboard.html"));
+  res.sendFile(path.join(__dirname, "../public/hud-dashboard.html"));
 });
 
-// Serve the futuristic HUD dashboard
+// Alias for HUD dashboard
 app.get("/hud", (req, res) => {
   res.sendFile(path.join(__dirname, "../public/hud-dashboard.html"));
 });
