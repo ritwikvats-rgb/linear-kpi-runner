@@ -202,6 +202,11 @@ app.get("/dashboard", (req, res) => {
   res.sendFile(path.join(__dirname, "../public/kpi-dashboard.html"));
 });
 
+// Serve the futuristic HUD dashboard
+app.get("/hud", (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/hud-dashboard.html"));
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`
