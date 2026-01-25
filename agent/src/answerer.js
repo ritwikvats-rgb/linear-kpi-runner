@@ -41,6 +41,20 @@ const { LinearClient } = require("./linearClient");
 const { ProjectChannelMapper } = require("./projectChannelMapper");
 const { ProjectAnalyzer } = require("./projectAnalyzer");
 
+// Format timestamp to IST (Indian Standard Time, UTC+5:30)
+function formatToIST(isoString) {
+  const date = new Date(isoString);
+  return date.toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }) + " IST";
+}
+
 // Initialize Slack/Linear clients (lazy)
 let _slackClient = null;
 let _linearClientForSlack = null;
@@ -181,7 +195,7 @@ function formatPodSummary(result) {
     }
   }
 
-  output += `\n*Source: LIVE from Linear (${fetchedAt})*`;
+  output += `\n*Source: LIVE from Linear (${formatToIST(fetchedAt)})*`;
   return output;
 }
 
@@ -204,7 +218,7 @@ function formatProjectList(result) {
     title: `${pod} Projects (${projectCount} total)`
   });
 
-  output += `\n*Source: LIVE from Linear (${fetchedAt})*`;
+  output += `\n*Source: LIVE from Linear (${formatToIST(fetchedAt)})*`;
   return output;
 }
 
@@ -252,7 +266,7 @@ function formatProjectDetail(result) {
     }
   }
 
-  output += `\n*Source: LIVE from Linear (${fetchedAt})*`;
+  output += `\n*Source: LIVE from Linear (${formatToIST(fetchedAt)})*`;
   return output;
 }
 
@@ -277,7 +291,7 @@ function formatBlockers(result) {
     });
   }
 
-  output += `\n*Source: LIVE from Linear (${fetchedAt})*`;
+  output += `\n*Source: LIVE from Linear (${formatToIST(fetchedAt)})*`;
   return output;
 }
 
@@ -715,7 +729,7 @@ async function generateAllPodsSummary() {
     out += "All pods progressing normally.\n";
   }
 
-  out += `\nSnapshot: ${result.fetchedAt}`;
+  out += `\nSnapshot: ${formatToIST(result.fetchedAt)}`;
 
   return out;
 }
@@ -1219,7 +1233,7 @@ async function generatePodNarrative(podName) {
   // Determine source string based on whether Slack data was fetched
   const hasSlack = commentsSummary && commentsSummary.hasSlackData;
   const sourceStr = hasSlack ? "Linear + Slack" : "Linear";
-  out += `Source: LIVE from ${sourceStr} | Generated: ${projectsResult.fetchedAt}`;
+  out += `Source: LIVE from ${sourceStr} | Generated: ${formatToIST(projectsResult.fetchedAt)}`;
 
   return out;
 }
