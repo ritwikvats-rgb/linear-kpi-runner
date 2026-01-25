@@ -823,13 +823,17 @@ async function fetchPodCommentsSummary(podName, projects) {
       // Skip failed fetches
     }
 
-    // Fetch Slack messages if project has a channel
+    // Fetch Slack messages AND threads if project has a channel
     if (slackClient && projectChannelMap[projectNameLower]) {
       const { channelId } = projectChannelMap[projectNameLower];
       try {
-        // Get messages from last 7 days
+        // Get messages from last 7 days WITH thread replies
         const oldest = String((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000);
-        const messages = await slackClient.getAllMessages(channelId, { oldest, maxMessages: 30 });
+        const messages = await slackClient.getMessagesWithThreads(channelId, {
+          oldest,
+          maxMessages: 30,
+          includeThreads: true
+        });
 
         if (messages && messages.length > 0) {
           hasSlackData = true;
@@ -839,13 +843,33 @@ async function fetchPodCommentsSummary(podName, projects) {
           );
 
           if (humanMessages.length > 0) {
-            allSlackMessages.push({
-              project: project.name,
-              messages: humanMessages.slice(0, 10).map(m => ({
+            // Flatten messages and their thread replies
+            const flattenedMessages = [];
+            for (const m of humanMessages.slice(0, 10)) {
+              flattenedMessages.push({
                 text: m.text.substring(0, 200),
                 user: m.user || "Unknown",
                 ts: m.ts,
-              })),
+                isThread: false,
+              });
+              // Include thread replies (up to 5 per message)
+              if (m.threadReplies && m.threadReplies.length > 0) {
+                for (const reply of m.threadReplies.slice(0, 5)) {
+                  if (!reply.bot_id && reply.text) {
+                    flattenedMessages.push({
+                      text: `↳ ${reply.text.substring(0, 150)}`,
+                      user: reply.user || "Unknown",
+                      ts: reply.ts,
+                      isThread: true,
+                    });
+                  }
+                }
+              }
+            }
+
+            allSlackMessages.push({
+              project: project.name,
+              messages: flattenedMessages,
             });
           }
         }
