@@ -841,11 +841,21 @@ async function fetchPodCommentsSummary(podName, projects) {
     if (slackClient && projectChannelMap[projectNameLower]) {
       const { channelId } = projectChannelMap[projectNameLower];
       try {
-        // Get messages from last 7 days WITH thread replies (no limits)
-        const oldest = String((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000);
+        // Determine oldest date based on project
+        // For "Data-Driven Cohorts": start from Dec 24, 2025
+        // For all other projects: fetch from channel creation (no limit)
+        let oldest;
+        if (projectNameLower.includes("data-driven cohorts")) {
+          // December 24, 2025 00:00:00 UTC
+          oldest = String(new Date("2025-12-24T00:00:00Z").getTime() / 1000);
+        } else {
+          // Fetch all messages from the beginning (use a very old date)
+          oldest = "0";
+        }
+
         const messages = await slackClient.getMessagesWithThreads(channelId, {
           oldest,
-          maxMessages: 100,
+          maxMessages: 500,  // Increased to get more historical messages
           includeThreads: true
         });
 
