@@ -1,5 +1,6 @@
 /* agent/public/js/charts.js
  * Chart.js initialization and dashboard interactivity
+ * Enhanced with 3D effects, animations, and particle system
  */
 
 // Chart instances
@@ -12,7 +13,13 @@ let healthChart = null;
 let chartData = null;
 let insightsData = null;
 
-// Pod colors matching backend
+// Particle system
+let particleCanvas = null;
+let particleCtx = null;
+let particles = [];
+let animationFrame = null;
+
+// Pod colors matching backend (enhanced with gradients)
 const POD_COLORS = {
   FTS: '#6366f1',
   GTS: '#8b5cf6',
@@ -20,6 +27,15 @@ const POD_COLORS = {
   'Talent Studio': '#14b8a6',
   Platform: '#f59e0b',
   'Growth and Reuse': '#22c55e',
+};
+
+const POD_GRADIENTS = {
+  FTS: ['#6366f1', '#818cf8'],
+  GTS: ['#8b5cf6', '#a78bfa'],
+  'Control Center': ['#ec4899', '#f472b6'],
+  'Talent Studio': ['#14b8a6', '#2dd4bf'],
+  Platform: ['#f59e0b', '#fbbf24'],
+  'Growth and Reuse': ['#22c55e', '#4ade80'],
 };
 
 // Default chart options for dark theme
@@ -31,6 +47,123 @@ const darkThemeDefaults = {
 // Set Chart.js defaults for dark theme
 Chart.defaults.color = darkThemeDefaults.color;
 Chart.defaults.borderColor = darkThemeDefaults.borderColor;
+
+// ============== Particle System ==============
+
+class Particle {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.reset();
+  }
+
+  reset() {
+    this.x = Math.random() * this.canvas.width;
+    this.y = Math.random() * this.canvas.height;
+    this.size = Math.random() * 2 + 0.5;
+    this.speedX = (Math.random() - 0.5) * 0.5;
+    this.speedY = (Math.random() - 0.5) * 0.5;
+    this.opacity = Math.random() * 0.5 + 0.1;
+    this.color = `rgba(99, 102, 241, ${this.opacity})`;
+  }
+
+  update() {
+    this.x += this.speedX;
+    this.y += this.speedY;
+
+    // Wrap around screen
+    if (this.x < 0) this.x = this.canvas.width;
+    if (this.x > this.canvas.width) this.x = 0;
+    if (this.y < 0) this.y = this.canvas.height;
+    if (this.y > this.canvas.height) this.y = 0;
+  }
+
+  draw(ctx) {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    ctx.fillStyle = this.color;
+    ctx.fill();
+  }
+}
+
+function initParticles() {
+  particleCanvas = document.getElementById('particleCanvas');
+  if (!particleCanvas) return;
+
+  particleCtx = particleCanvas.getContext('2d');
+  resizeParticleCanvas();
+
+  // Create particles
+  const particleCount = Math.min(50, Math.floor((particleCanvas.width * particleCanvas.height) / 20000));
+  for (let i = 0; i < particleCount; i++) {
+    particles.push(new Particle(particleCanvas));
+  }
+
+  animateParticles();
+}
+
+function resizeParticleCanvas() {
+  if (!particleCanvas) return;
+  particleCanvas.width = window.innerWidth;
+  particleCanvas.height = window.innerHeight;
+}
+
+function animateParticles() {
+  if (!particleCtx) return;
+
+  particleCtx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+
+  // Draw connections between nearby particles
+  particles.forEach((p1, i) => {
+    particles.slice(i + 1).forEach(p2 => {
+      const dx = p1.x - p2.x;
+      const dy = p1.y - p2.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance < 120) {
+        particleCtx.beginPath();
+        particleCtx.strokeStyle = `rgba(99, 102, 241, ${0.1 * (1 - distance / 120)})`;
+        particleCtx.lineWidth = 0.5;
+        particleCtx.moveTo(p1.x, p1.y);
+        particleCtx.lineTo(p2.x, p2.y);
+        particleCtx.stroke();
+      }
+    });
+  });
+
+  // Update and draw particles
+  particles.forEach(p => {
+    p.update();
+    p.draw(particleCtx);
+  });
+
+  animationFrame = requestAnimationFrame(animateParticles);
+}
+
+// ============== Animated Counter ==============
+
+function animateCounter(element, target, suffix = '', duration = 1500) {
+  const start = 0;
+  const startTime = performance.now();
+
+  function update(currentTime) {
+    const elapsed = currentTime - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+
+    // Easing function (ease out cubic)
+    const easeOut = 1 - Math.pow(1 - progress, 3);
+    const current = Math.floor(start + (target - start) * easeOut);
+
+    element.textContent = current + suffix;
+
+    if (progress < 1) {
+      requestAnimationFrame(update);
+    } else {
+      element.textContent = target + suffix;
+    }
+  }
+
+  requestAnimationFrame(update);
+}
 
 // ============== Data Fetching ==============
 
@@ -69,24 +202,29 @@ async function fetchInsights() {
 function updateHeroMetrics(metrics) {
   if (!metrics) return;
 
-  // Overall delivery
-  document.getElementById('heroDelivery').textContent = `${metrics.overallDeliveryPct}%`;
+  // Overall delivery with animated counter
+  const deliveryEl = document.getElementById('heroDelivery');
+  animateCounter(deliveryEl, metrics.overallDeliveryPct, '%', 1500);
   document.getElementById('heroDeliveryDetail').textContent =
     `${metrics.totalCompleted}/${metrics.totalCommitted} DELs in ${metrics.currentCycle}`;
 
-  // Features done
-  document.getElementById('heroFeatures').textContent = metrics.featuresDone;
+  // Features done with animated counter
+  const featuresEl = document.getElementById('heroFeatures');
+  animateCounter(featuresEl, metrics.featuresDone, '', 1200);
   document.getElementById('heroFeaturesDetail').textContent =
     `${metrics.featuresInFlight} in flight, ${metrics.totalFeatures} total`;
 
-  // Active pods
-  document.getElementById('heroActivePods').textContent = metrics.activePods;
+  // Active pods with animated counter
+  const podsEl = document.getElementById('heroActivePods');
+  animateCounter(podsEl, metrics.activePods, '', 1000);
   document.getElementById('heroPodsDetail').textContent =
     `of ${metrics.totalPods} pods with commitments`;
 
-  // Top performer
+  // Top performer (no counter, just text)
   if (metrics.topPerformer) {
-    document.getElementById('heroTopPerformer').textContent = metrics.topPerformer.pod;
+    const topEl = document.getElementById('heroTopPerformer');
+    topEl.textContent = metrics.topPerformer.pod;
+    topEl.classList.add('highlight-text');
     document.getElementById('heroTopDetail').textContent =
       `${metrics.topPerformer.deliveryPct} delivery rate`;
   } else {
@@ -97,6 +235,17 @@ function updateHeroMetrics(metrics) {
   // Update timestamp
   document.getElementById('lastUpdated').textContent =
     new Date(chartData.fetchedAt).toLocaleString();
+
+  // Trigger hero card animations
+  document.querySelectorAll('.hero-card').forEach((card, i) => {
+    card.style.opacity = '0';
+    card.style.transform = 'translateY(20px)';
+    setTimeout(() => {
+      card.style.transition = 'all 0.5s ease';
+      card.style.opacity = '1';
+      card.style.transform = 'translateY(0)';
+    }, i * 100);
+  });
 }
 
 // ============== Chart Creation ==============
@@ -105,16 +254,26 @@ function createDeliveryChart(data) {
   const ctx = document.getElementById('deliveryChart').getContext('2d');
   const chartConfig = data.deliveryChart;
 
-  // Update badge
-  document.getElementById('deliveryCycleBadge').textContent = chartConfig.meta.cycle;
+  // Update badge with animation
+  const badge = document.getElementById('deliveryCycleBadge');
+  badge.textContent = chartConfig.meta.cycle;
+  badge.classList.add('pulse');
 
-  // Create gradient fills
+  // Create enhanced gradient fills with glow effect
   const gradients = chartConfig.data.labels.map((label, i) => {
     const gradient = ctx.createLinearGradient(0, 0, ctx.canvas.width, 0);
-    const color = chartConfig.data.datasets[0].backgroundColor[i];
-    gradient.addColorStop(0, color);
-    gradient.addColorStop(1, `${color}80`);
+    const baseColor = chartConfig.data.datasets[0].backgroundColor[i];
+    const podGradient = POD_GRADIENTS[label] || [baseColor, baseColor];
+    gradient.addColorStop(0, podGradient[0]);
+    gradient.addColorStop(0.5, podGradient[1]);
+    gradient.addColorStop(1, `${podGradient[0]}60`);
     return gradient;
+  });
+
+  // Create shadow/glow effect
+  const shadowColors = chartConfig.data.labels.map((label) => {
+    const color = POD_COLORS[label] || '#6366f1';
+    return `${color}40`;
   });
 
   deliveryChart = new Chart(ctx, {
@@ -124,6 +283,10 @@ function createDeliveryChart(data) {
       datasets: [{
         ...chartConfig.data.datasets[0],
         backgroundColor: gradients,
+        borderColor: chartConfig.data.labels.map(label => POD_COLORS[label] || '#6366f1'),
+        borderWidth: 1,
+        borderRadius: 8,
+        borderSkipped: false,
       }],
     },
     options: {
@@ -131,19 +294,25 @@ function createDeliveryChart(data) {
       responsive: true,
       maintainAspectRatio: false,
       animation: {
-        duration: 1000,
+        duration: 1500,
         easing: 'easeOutQuart',
+        delay: (context) => context.dataIndex * 100,
       },
       plugins: {
         legend: { display: false },
         tooltip: {
           backgroundColor: 'rgba(15, 15, 26, 0.95)',
-          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderColor: 'rgba(99, 102, 241, 0.3)',
           borderWidth: 1,
-          padding: 12,
+          padding: 16,
           titleColor: '#fff',
+          titleFont: { size: 14, weight: 'bold' },
           bodyColor: 'rgba(255, 255, 255, 0.8)',
+          bodyFont: { size: 13 },
+          cornerRadius: 12,
+          displayColors: false,
           callbacks: {
+            title: (items) => items[0].label,
             label: (ctx) => {
               const i = ctx.dataIndex;
               const committed = chartConfig.meta.committed[i];
@@ -161,14 +330,19 @@ function createDeliveryChart(data) {
         x: {
           max: 100,
           grid: {
-            color: 'rgba(255, 255, 255, 0.05)',
+            color: 'rgba(255, 255, 255, 0.03)',
+            drawBorder: false,
           },
           ticks: {
             callback: (val) => `${val}%`,
+            font: { size: 11 },
           },
         },
         y: {
           grid: { display: false },
+          ticks: {
+            font: { size: 12, weight: '500' },
+          },
         },
       },
       onClick: (e, elements) => {
@@ -192,20 +366,39 @@ function createFeatureChart(data) {
   document.getElementById('featureTotalBadge').textContent =
     `${chartConfig.meta.totalFeatures} features`;
 
-  // Update donut center
-  document.getElementById('donutCenter').querySelector('.donut-value').textContent =
-    `${chartConfig.meta.donePercentage}%`;
+  // Update donut center with animation
+  const donutValue = document.getElementById('donutCenter').querySelector('.donut-value');
+  animateCounter(donutValue, chartConfig.meta.donePercentage, '%', 1500);
+
+  // Enhanced colors with gradients
+  const enhancedColors = [
+    '#22c55e', // Done - green
+    '#6366f1', // In Flight - indigo
+    '#64748b', // Not Started - slate
+  ];
 
   featureChart = new Chart(ctx, {
     type: 'doughnut',
-    data: chartConfig.data,
+    data: {
+      ...chartConfig.data,
+      datasets: [{
+        ...chartConfig.data.datasets[0],
+        backgroundColor: enhancedColors,
+        borderColor: '#0f0f1a',
+        borderWidth: 3,
+        hoverBorderColor: '#fff',
+        hoverBorderWidth: 2,
+        hoverOffset: 8,
+      }],
+    },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      cutout: '70%',
+      cutout: '72%',
       animation: {
         animateRotate: true,
-        duration: 1200,
+        animateScale: true,
+        duration: 1800,
         easing: 'easeOutQuart',
       },
       plugins: {
@@ -215,18 +408,24 @@ function createFeatureChart(data) {
             usePointStyle: true,
             pointStyle: 'circle',
             padding: 20,
+            font: { size: 12, weight: '500' },
           },
         },
         tooltip: {
           backgroundColor: 'rgba(15, 15, 26, 0.95)',
-          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderColor: 'rgba(99, 102, 241, 0.3)',
           borderWidth: 1,
-          padding: 12,
+          padding: 16,
+          cornerRadius: 12,
+          titleFont: { size: 14, weight: 'bold' },
+          bodyFont: { size: 13 },
+          displayColors: true,
+          boxPadding: 6,
           callbacks: {
             label: (ctx) => {
               const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
               const pct = total > 0 ? Math.round((ctx.raw / total) * 100) : 0;
-              return `${ctx.label}: ${ctx.raw} (${pct}%)`;
+              return ` ${ctx.label}: ${ctx.raw} (${pct}%)`;
             },
           },
         },
@@ -244,14 +443,41 @@ function createTrendChart(data) {
   // Build legend
   buildTrendLegend(chartConfig.data.datasets);
 
+  // Enhance datasets with gradient fills
+  const enhancedDatasets = chartConfig.data.datasets.map((ds, i) => {
+    const gradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
+    const color = ds.borderColor || POD_COLORS[ds.label] || '#6366f1';
+    gradient.addColorStop(0, `${color}40`);
+    gradient.addColorStop(1, `${color}00`);
+
+    return {
+      ...ds,
+      fill: true,
+      backgroundColor: gradient,
+      borderWidth: 3,
+      pointRadius: 4,
+      pointHoverRadius: 8,
+      pointBackgroundColor: color,
+      pointBorderColor: '#0f0f1a',
+      pointBorderWidth: 2,
+      pointHoverBackgroundColor: '#fff',
+      pointHoverBorderColor: color,
+      pointHoverBorderWidth: 3,
+      tension: 0.4,
+    };
+  });
+
   trendChart = new Chart(ctx, {
     type: 'line',
-    data: chartConfig.data,
+    data: {
+      ...chartConfig.data,
+      datasets: enhancedDatasets,
+    },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       animation: {
-        duration: 1500,
+        duration: 2000,
         easing: 'easeOutQuart',
       },
       interaction: {
@@ -262,13 +488,16 @@ function createTrendChart(data) {
         legend: { display: false },
         tooltip: {
           backgroundColor: 'rgba(15, 15, 26, 0.95)',
-          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderColor: 'rgba(99, 102, 241, 0.3)',
           borderWidth: 1,
-          padding: 12,
+          padding: 16,
+          cornerRadius: 12,
+          titleFont: { size: 14, weight: 'bold' },
+          bodyFont: { size: 12 },
           callbacks: {
             label: (ctx) => {
               if (ctx.raw === null) return null;
-              return `${ctx.dataset.label}: ${ctx.raw}%`;
+              return ` ${ctx.dataset.label}: ${ctx.raw}%`;
             },
           },
         },
@@ -278,15 +507,21 @@ function createTrendChart(data) {
           min: 0,
           max: 100,
           grid: {
-            color: 'rgba(255, 255, 255, 0.05)',
+            color: 'rgba(255, 255, 255, 0.03)',
+            drawBorder: false,
           },
           ticks: {
             callback: (val) => `${val}%`,
+            font: { size: 11 },
           },
         },
         x: {
           grid: {
-            color: 'rgba(255, 255, 255, 0.05)',
+            color: 'rgba(255, 255, 255, 0.03)',
+            drawBorder: false,
+          },
+          ticks: {
+            font: { size: 11, weight: '500' },
           },
         },
       },
@@ -300,14 +535,35 @@ function createHealthChart(data) {
   const ctx = document.getElementById('healthChart').getContext('2d');
   const chartConfig = data.podHealthChart;
 
+  // Enhance datasets with gradient fills
+  const enhancedDatasets = chartConfig.data.datasets.map((ds, i) => {
+    const color = ds.borderColor || POD_COLORS[ds.label] || '#6366f1';
+    return {
+      ...ds,
+      backgroundColor: `${color}30`,
+      borderColor: color,
+      borderWidth: 2,
+      pointBackgroundColor: color,
+      pointBorderColor: '#0f0f1a',
+      pointBorderWidth: 2,
+      pointRadius: 4,
+      pointHoverRadius: 8,
+      pointHoverBackgroundColor: '#fff',
+      pointHoverBorderColor: color,
+    };
+  });
+
   healthChart = new Chart(ctx, {
     type: 'radar',
-    data: chartConfig.data,
+    data: {
+      ...chartConfig.data,
+      datasets: enhancedDatasets,
+    },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       animation: {
-        duration: 1200,
+        duration: 1800,
         easing: 'easeOutQuart',
       },
       plugins: {
@@ -317,14 +573,17 @@ function createHealthChart(data) {
             usePointStyle: true,
             pointStyle: 'circle',
             padding: 15,
-            font: { size: 11 },
+            font: { size: 11, weight: '500' },
           },
         },
         tooltip: {
           backgroundColor: 'rgba(15, 15, 26, 0.95)',
-          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderColor: 'rgba(99, 102, 241, 0.3)',
           borderWidth: 1,
-          padding: 12,
+          padding: 16,
+          cornerRadius: 12,
+          titleFont: { size: 14, weight: 'bold' },
+          bodyFont: { size: 12 },
         },
       },
       scales: {
@@ -333,14 +592,15 @@ function createHealthChart(data) {
           max: 100,
           beginAtZero: true,
           grid: {
-            color: 'rgba(255, 255, 255, 0.1)',
+            color: 'rgba(99, 102, 241, 0.1)',
+            circular: true,
           },
           angleLines: {
-            color: 'rgba(255, 255, 255, 0.1)',
+            color: 'rgba(99, 102, 241, 0.1)',
           },
           pointLabels: {
-            color: 'rgba(255, 255, 255, 0.7)',
-            font: { size: 11 },
+            color: 'rgba(255, 255, 255, 0.8)',
+            font: { size: 11, weight: '500' },
           },
           ticks: {
             display: false,
@@ -379,21 +639,35 @@ function renderInsights(data) {
   }
 
   grid.innerHTML = data.insights.map((insight, i) => `
-    <div class="insight-card ${insight.type}" data-chart="${insight.relatedChart || ''}" data-pod="${insight.relatedPod || ''}">
+    <div class="insight-card ${insight.type}" data-chart="${insight.relatedChart || ''}" data-pod="${insight.relatedPod || ''}" style="animation-delay: ${i * 0.1}s;">
       <div class="insight-header">
         ${getInsightIcon(insight.type)}
         <span class="insight-type">${getInsightLabel(insight.type)}</span>
       </div>
       <div class="insight-title">${escapeHtml(insight.title)}</div>
       <div class="insight-text">${escapeHtml(insight.text)}</div>
+      <div class="insight-glow"></div>
     </div>
   `).join('');
 
-  // Add hover interactions
+  // Add hover interactions with enhanced effects
   document.querySelectorAll('.insight-card[data-chart]').forEach(card => {
-    card.addEventListener('mouseenter', () => highlightRelatedChart(card.dataset.chart));
-    card.addEventListener('mouseleave', () => removeChartHighlight());
+    card.addEventListener('mouseenter', () => {
+      highlightRelatedChart(card.dataset.chart);
+      card.classList.add('hovered');
+    });
+    card.addEventListener('mouseleave', () => {
+      removeChartHighlight();
+      card.classList.remove('hovered');
+    });
   });
+
+  // Trigger entrance animations
+  setTimeout(() => {
+    document.querySelectorAll('.insight-card').forEach((card, i) => {
+      setTimeout(() => card.classList.add('visible'), i * 100);
+    });
+  }, 100);
 }
 
 function getInsightIcon(type) {
@@ -469,23 +743,49 @@ function showPodDetail(podName) {
 // ============== Initialization ==============
 
 async function initDashboard() {
+  // Initialize particle system
+  initParticles();
+
+  // Add resize listener for particles
+  window.addEventListener('resize', resizeParticleCanvas);
+
   // Fetch chart data
   chartData = await fetchChartData();
 
   if (chartData) {
-    // Update hero metrics
+    // Update hero metrics with animated counters
     updateHeroMetrics(chartData.heroMetrics);
 
-    // Create all charts
-    createDeliveryChart(chartData);
-    createFeatureChart(chartData);
-    createTrendChart(chartData);
-    createHealthChart(chartData);
+    // Create all charts with staggered animations
+    setTimeout(() => createDeliveryChart(chartData), 100);
+    setTimeout(() => createFeatureChart(chartData), 200);
+    setTimeout(() => createTrendChart(chartData), 300);
+    setTimeout(() => createHealthChart(chartData), 400);
   }
 
   // Fetch and render insights (can run in parallel)
   insightsData = await fetchInsights();
   renderInsights(insightsData);
+
+  // Add intersection observer for scroll animations
+  initScrollAnimations();
+}
+
+function initScrollAnimations() {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, {
+    threshold: 0.1,
+    rootMargin: '0px 0px -50px 0px'
+  });
+
+  document.querySelectorAll('.animate-in').forEach(el => {
+    observer.observe(el);
+  });
 }
 
 // Event listeners

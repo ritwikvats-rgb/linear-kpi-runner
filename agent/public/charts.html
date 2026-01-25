@@ -9,6 +9,14 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
+  <!-- Animated Background -->
+  <div class="bg-animated">
+    <div class="bg-grid"></div>
+    <div class="bg-orb bg-orb-1"></div>
+    <div class="bg-orb bg-orb-2"></div>
+    <div class="bg-orb bg-orb-3"></div>
+    <canvas id="particleCanvas" class="particle-canvas"></canvas>
+  </div>
   <!-- Navigation Bar -->
   <nav class="nav-bar">
     <div class="nav-brand">
@@ -51,35 +59,77 @@
 
   <!-- Hero Metrics Bar -->
   <section class="hero-metrics" id="heroMetrics">
-    <div class="hero-card">
-      <div class="hero-value" id="heroDelivery">--</div>
+    <div class="hero-card" style="animation-delay: 0s;">
+      <div class="hero-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+      </div>
+      <div class="hero-value" id="heroDelivery" data-target="0">--</div>
       <div class="hero-label">Overall Delivery</div>
       <div class="hero-sublabel" id="heroDeliveryDetail">Loading...</div>
+      <div class="hero-glow"></div>
     </div>
-    <div class="hero-card">
-      <div class="hero-value" id="heroFeatures">--</div>
+    <div class="hero-card" style="animation-delay: 0.1s;">
+      <div class="hero-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5"/>
+          <path d="M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <div class="hero-value" id="heroFeatures" data-target="0">--</div>
       <div class="hero-label">Features Done</div>
       <div class="hero-sublabel" id="heroFeaturesDetail">Loading...</div>
+      <div class="hero-glow"></div>
     </div>
-    <div class="hero-card">
-      <div class="hero-value" id="heroActivePods">--</div>
+    <div class="hero-card" style="animation-delay: 0.2s;">
+      <div class="hero-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      </div>
+      <div class="hero-value" id="heroActivePods" data-target="0">--</div>
       <div class="hero-label">Active Pods</div>
       <div class="hero-sublabel" id="heroPodsDetail">Loading...</div>
+      <div class="hero-glow"></div>
     </div>
-    <div class="hero-card highlight">
+    <div class="hero-card highlight" style="animation-delay: 0.3s;">
+      <div class="hero-icon trophy">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
+          <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+          <path d="M4 22h16"/>
+          <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
+          <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
+          <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
+        </svg>
+      </div>
       <div class="hero-value" id="heroTopPerformer">--</div>
       <div class="hero-label">Top Performer</div>
       <div class="hero-sublabel" id="heroTopDetail">Loading...</div>
+      <div class="hero-glow"></div>
     </div>
   </section>
 
   <!-- Main Charts Grid -->
   <main class="charts-grid">
     <!-- Delivery Comparison Chart -->
-    <div class="chart-card" id="deliveryCard">
+    <div class="chart-card animate-in" id="deliveryCard" style="animation-delay: 0.1s;">
       <div class="chart-header">
-        <h2 class="chart-title">Delivery Comparison</h2>
-        <span class="chart-badge" id="deliveryCycleBadge">--</span>
+        <h2 class="chart-title">
+          <svg class="chart-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 20V10"/>
+            <path d="M12 20V4"/>
+            <path d="M6 20v-6"/>
+          </svg>
+          Delivery Comparison
+        </h2>
+        <span class="chart-badge pulse" id="deliveryCycleBadge">--</span>
       </div>
       <div class="chart-container">
         <canvas id="deliveryChart"></canvas>
@@ -91,9 +141,15 @@
     </div>
 
     <!-- Feature Progress Chart -->
-    <div class="chart-card" id="featureCard">
+    <div class="chart-card animate-in" id="featureCard" style="animation-delay: 0.2s;">
       <div class="chart-header">
-        <h2 class="chart-title">Feature Progress</h2>
+        <h2 class="chart-title">
+          <svg class="chart-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 6v6l4 2"/>
+          </svg>
+          Feature Progress
+        </h2>
         <span class="chart-badge" id="featureTotalBadge">--</span>
       </div>
       <div class="chart-container donut-container">
@@ -110,9 +166,15 @@
     </div>
 
     <!-- Cycle Trend Chart -->
-    <div class="chart-card wide" id="trendCard">
+    <div class="chart-card wide animate-in" id="trendCard" style="animation-delay: 0.3s;">
       <div class="chart-header">
-        <h2 class="chart-title">Delivery Trend Across Cycles</h2>
+        <h2 class="chart-title">
+          <svg class="chart-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+            <polyline points="17 6 23 6 23 12"/>
+          </svg>
+          Delivery Trend Across Cycles
+        </h2>
         <div class="chart-legend" id="trendLegend"></div>
       </div>
       <div class="chart-container">
@@ -125,10 +187,15 @@
     </div>
 
     <!-- Pod Health Chart -->
-    <div class="chart-card" id="healthCard">
+    <div class="chart-card animate-in" id="healthCard" style="animation-delay: 0.4s;">
       <div class="chart-header">
-        <h2 class="chart-title">Pod Health Overview</h2>
-        <button class="chart-action" id="healthToggle" title="Toggle pods">
+        <h2 class="chart-title">
+          <svg class="chart-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+          </svg>
+          Pod Health Overview
+        </h2>
+        <button class="chart-action glow-btn" id="healthToggle" title="Toggle pods">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3"/>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
@@ -146,15 +213,16 @@
   </main>
 
   <!-- AI Insights Panel -->
-  <section class="insights-panel" id="insightsPanel">
+  <section class="insights-panel animate-in" id="insightsPanel" style="animation-delay: 0.5s;">
     <div class="insights-header">
       <h2 class="insights-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg class="insights-icon sparkle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
         </svg>
         AI Insights
+        <span class="ai-badge">Powered by AI</span>
       </h2>
-      <button class="refresh-btn" id="refreshInsights" title="Refresh insights">
+      <button class="refresh-btn glow-btn" id="refreshInsights" title="Refresh insights">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M23 4v6h-6"/>
           <path d="M1 20v-6h6"/>
@@ -180,8 +248,22 @@
 
   <!-- Footer -->
   <footer class="footer">
-    <span>Data refreshed: <span id="lastUpdated">--</span></span>
-    <span>Source: Live from Linear</span>
+    <div class="footer-content">
+      <span class="footer-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        Data refreshed: <span id="lastUpdated">--</span>
+      </span>
+      <span class="footer-divider">|</span>
+      <span class="footer-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+          <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+        </svg>
+        Source: Live from Linear
+      </span>
+    </div>
   </footer>
 
   <!-- Chart.js and custom scripts -->
