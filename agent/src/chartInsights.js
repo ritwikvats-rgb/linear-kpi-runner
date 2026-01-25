@@ -65,92 +65,242 @@ async function generateChartInsights(chartData) {
 
 /**
  * Generate rule-based insights (always available, no AI needed)
+ * Comprehensive analysis across all pods
  */
 function generateRuleBasedInsights(chartData) {
   const insights = [];
-  const { heroMetrics, deliveryChart } = chartData;
+  const { heroMetrics, deliveryChart, featureChart, podHealthChart, cycleTrendChart } = chartData;
 
   if (!heroMetrics) return insights;
 
-  // Highlight: Top performer
-  if (heroMetrics.topPerformer && parseInt(heroMetrics.topPerformer.deliveryPct) >= 80) {
-    insights.push({
-      type: "highlight",
-      title: "Top Performer",
-      text: `${heroMetrics.topPerformer.pod} leads with ${heroMetrics.topPerformer.deliveryPct} delivery rate in ${heroMetrics.currentCycle}.`,
-      relatedChart: "delivery",
-      relatedPod: heroMetrics.topPerformer.pod,
-      priority: 1,
-    });
-  }
+  // ============== DELIVERY INSIGHTS ==============
 
-  // Warning: Low overall delivery
-  if (heroMetrics.overallDeliveryPct < 50 && heroMetrics.totalCommitted > 0) {
-    insights.push({
-      type: "warning",
-      title: "Delivery At Risk",
-      text: `Overall delivery at ${heroMetrics.overallDeliveryPct}%. Consider reviewing blockers across pods.`,
-      relatedChart: "delivery",
-      priority: 2,
-    });
-  }
-
-  // Highlight: High overall delivery
-  if (heroMetrics.overallDeliveryPct >= 80 && heroMetrics.totalCommitted > 0) {
-    insights.push({
-      type: "highlight",
-      title: "Strong Delivery",
-      text: `Excellent overall delivery at ${heroMetrics.overallDeliveryPct}% - team is executing well!`,
-      relatedChart: "delivery",
-      priority: 1,
-    });
-  }
-
-  // Trend: Features in flight
-  if (heroMetrics.featuresInFlight > 0) {
-    const inFlightPct = heroMetrics.totalFeatures > 0
-      ? Math.round((heroMetrics.featuresInFlight / heroMetrics.totalFeatures) * 100)
-      : 0;
-    insights.push({
-      type: "trend",
-      title: "Active Development",
-      text: `${heroMetrics.featuresInFlight} features (${inFlightPct}%) currently in flight across ${heroMetrics.activePods} pods.`,
-      relatedChart: "feature",
-      priority: 3,
-    });
-  }
-
-  // Warning: Pods with 0% delivery
-  if (deliveryChart && deliveryChart.data) {
-    const zeroDeliveryPods = deliveryChart.data.labels.filter((pod, i) =>
-      deliveryChart.data.datasets[0].data[i] === 0 && deliveryChart.meta.committed[i] > 0
-    );
-
-    if (zeroDeliveryPods.length > 0) {
+  // Top performer with context
+  if (heroMetrics.topPerformer) {
+    const pct = parseInt(heroMetrics.topPerformer.deliveryPct) || 0;
+    if (pct > 0) {
       insights.push({
-        type: "warning",
-        title: "No Completions",
-        text: `${zeroDeliveryPods.join(", ")} ${zeroDeliveryPods.length === 1 ? "has" : "have"} committed DELs but 0% completion.`,
+        type: "highlight",
+        title: "Top Performer",
+        text: `${heroMetrics.topPerformer.pod} leads with ${heroMetrics.topPerformer.deliveryPct} delivery in ${heroMetrics.currentCycle}.`,
         relatedChart: "delivery",
-        relatedPods: zeroDeliveryPods,
+        relatedPod: heroMetrics.topPerformer.pod,
         priority: 1,
       });
     }
   }
 
-  // Action: Suggest focus areas
+  // Overall delivery status
+  if (heroMetrics.totalCommitted > 0) {
+    if (heroMetrics.overallDeliveryPct >= 80) {
+      insights.push({
+        type: "highlight",
+        title: "Strong Execution",
+        text: `Team delivering at ${heroMetrics.overallDeliveryPct}% - ${heroMetrics.totalCompleted}/${heroMetrics.totalCommitted} DELs complete.`,
+        relatedChart: "delivery",
+        priority: 1,
+      });
+    } else if (heroMetrics.overallDeliveryPct < 40) {
+      insights.push({
+        type: "warning",
+        title: "Delivery At Risk",
+        text: `Only ${heroMetrics.overallDeliveryPct}% delivered. ${heroMetrics.totalCommitted - heroMetrics.totalCompleted} DELs pending.`,
+        relatedChart: "delivery",
+        priority: 1,
+      });
+    }
+  }
+
+  // ============== PER-POD ANALYSIS ==============
+
+  if (deliveryChart && deliveryChart.data) {
+    const labels = deliveryChart.data.labels;
+    const data = deliveryChart.data.datasets[0].data;
+    const committed = deliveryChart.meta.committed;
+    const completed = deliveryChart.meta.completed;
+
+    // Find pods needing attention (committed but low/zero delivery)
+    const needsAttention = [];
+    const performingWell = [];
+    const notStarted = [];
+
+    labels.forEach((pod, i) => {
+      const pct = data[i];
+      const comm = committed[i];
+      const comp = completed[i];
+
+      if (comm > 0 && pct === 0) {
+        needsAttention.push({ pod, committed: comm, completed: comp, pct });
+      } else if (comm > 0 && pct < 30) {
+        needsAttention.push({ pod, committed: comm, completed: comp, pct });
+      } else if (comm > 0 && pct >= 50) {
+        performingWell.push({ pod, committed: comm, completed: comp, pct });
+      } else if (comm === 0) {
+        notStarted.push(pod);
+      }
+    });
+
+    // Warning for struggling pods
+    if (needsAttention.length > 0) {
+      const podList = needsAttention.map(p => `${p.pod} (${p.pct}%)`).join(", ");
+      insights.push({
+        type: "warning",
+        title: "Needs Attention",
+        text: `Low delivery: ${podList}. Review blockers and dependencies.`,
+        relatedChart: "delivery",
+        relatedPods: needsAttention.map(p => p.pod),
+        priority: 1,
+      });
+    }
+
+    // Highlight performing pods
+    if (performingWell.length > 1) {
+      const podList = performingWell.map(p => p.pod).join(", ");
+      insights.push({
+        type: "highlight",
+        title: "Pods On Track",
+        text: `${podList} showing solid progress with ${performingWell.map(p => p.pct + "%").join(", ")} delivery.`,
+        relatedChart: "delivery",
+        priority: 2,
+      });
+    }
+
+    // Info about inactive pods
+    if (notStarted.length > 0) {
+      insights.push({
+        type: "trend",
+        title: "No Commitments",
+        text: `${notStarted.join(", ")} ${notStarted.length === 1 ? "has" : "have"} no DEL commitments this cycle.`,
+        relatedChart: "delivery",
+        priority: 4,
+      });
+    }
+  }
+
+  // ============== FEATURE INSIGHTS ==============
+
+  if (featureChart && featureChart.meta) {
+    const { totalFeatures, donePercentage } = featureChart.meta;
+    const featureData = featureChart.data.datasets[0].data;
+    const done = featureData[0] || 0;
+    const inFlight = featureData[1] || 0;
+    const notStarted = featureData[2] || 0;
+
+    // Feature velocity
+    if (totalFeatures > 0) {
+      const activeWork = done + inFlight;
+      const activePct = Math.round((activeWork / totalFeatures) * 100);
+
+      insights.push({
+        type: "trend",
+        title: "Feature Velocity",
+        text: `${activePct}% features active (${done} done, ${inFlight} in flight). ${notStarted} not started.`,
+        relatedChart: "feature",
+        priority: 3,
+      });
+
+      // Warning if too many not started
+      if (notStarted > inFlight + done) {
+        insights.push({
+          type: "warning",
+          title: "Features Backlogged",
+          text: `${notStarted} features (${Math.round((notStarted/totalFeatures)*100)}%) not yet started. Consider prioritization.`,
+          relatedChart: "feature",
+          priority: 2,
+        });
+      }
+    }
+  }
+
+  // ============== CYCLE TREND INSIGHTS ==============
+
+  if (cycleTrendChart && cycleTrendChart.data) {
+    const datasets = cycleTrendChart.data.datasets;
+    const cycles = cycleTrendChart.data.labels;
+
+    // Analyze trends for each pod
+    const improving = [];
+    const declining = [];
+
+    datasets.forEach(ds => {
+      const data = ds.data.filter(d => d !== null);
+      if (data.length >= 2) {
+        const lastTwo = data.slice(-2);
+        const diff = lastTwo[1] - lastTwo[0];
+        if (diff > 20) {
+          improving.push({ pod: ds.label, diff });
+        } else if (diff < -20) {
+          declining.push({ pod: ds.label, diff: Math.abs(diff) });
+        }
+      }
+    });
+
+    if (improving.length > 0) {
+      insights.push({
+        type: "highlight",
+        title: "Improving Trend",
+        text: `${improving.map(p => p.pod).join(", ")} showing improvement vs previous cycle.`,
+        relatedChart: "trend",
+        priority: 2,
+      });
+    }
+
+    if (declining.length > 0) {
+      insights.push({
+        type: "warning",
+        title: "Declining Trend",
+        text: `${declining.map(p => p.pod).join(", ")} dropped from previous cycle. Investigate causes.`,
+        relatedChart: "trend",
+        priority: 1,
+      });
+    }
+  }
+
+  // ============== POD HEALTH INSIGHTS ==============
+
+  if (podHealthChart && podHealthChart.data) {
+    const datasets = podHealthChart.data.datasets;
+    const healthMetrics = podHealthChart.data.labels; // ["Delivery %", "Commitment", "Features Done", "Velocity", "No Spillover"]
+
+    // Find pods with balanced vs imbalanced metrics
+    const healthScores = datasets.map(ds => {
+      const avg = ds.data.reduce((a, b) => a + b, 0) / ds.data.length;
+      const variance = ds.data.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / ds.data.length;
+      return { pod: ds.label, avg: Math.round(avg), variance: Math.round(variance), data: ds.data };
+    });
+
+    // Highlight well-rounded pods
+    const wellRounded = healthScores.filter(p => p.avg >= 50 && p.variance < 500);
+    if (wellRounded.length > 0) {
+      insights.push({
+        type: "highlight",
+        title: "Balanced Teams",
+        text: `${wellRounded.map(p => p.pod).join(", ")} showing balanced health across all metrics.`,
+        relatedChart: "health",
+        priority: 3,
+      });
+    }
+  }
+
+  // ============== ACTION ITEMS ==============
+
+  // Remaining work
   if (heroMetrics.totalCommitted > heroMetrics.totalCompleted) {
     const remaining = heroMetrics.totalCommitted - heroMetrics.totalCompleted;
+    const completionRate = heroMetrics.totalCommitted > 0
+      ? Math.round((heroMetrics.totalCompleted / heroMetrics.totalCommitted) * 100)
+      : 0;
+
     insights.push({
       type: "action",
-      title: "Focus Area",
-      text: `${remaining} DELs remaining in ${heroMetrics.currentCycle}. Prioritize completion before cycle ends.`,
+      title: "Sprint Focus",
+      text: `${remaining} DELs remaining (${100 - completionRate}% of commitment). Focus on completion.`,
       relatedChart: "delivery",
       priority: 2,
     });
   }
 
-  // Sort by priority
+  // Sort by priority and return
   return insights.sort((a, b) => a.priority - b.priority);
 }
 
