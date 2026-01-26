@@ -3,236 +3,121 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HUD Command Center - KPI Dashboard</title>
+  <title>KPI Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --hud-primary: #00f0ff;
-      --hud-secondary: #ff00ff;
-      --hud-accent: #00ff88;
-      --hud-warning: #ffaa00;
-      --hud-danger: #ff0055;
-      --hud-purple: #a855f7;
-      --hud-bg: #0a0a12;
-      --hud-panel: rgba(0, 240, 255, 0.03);
-      --hud-border: rgba(0, 240, 255, 0.2);
-      --hud-glow: 0 0 20px rgba(0, 240, 255, 0.5);
+      --primary: #4f46e5;
+      --primary-light: #818cf8;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: 'Rajdhani', sans-serif;
-      background: var(--hud-bg);
-      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
       min-height: 100vh;
-      overflow-x: hidden;
+      line-height: 1.5;
     }
 
-    /* ============== ANIMATED BACKGROUND ============== */
-    .hud-background {
-      position: fixed;
-      inset: 0;
-      z-index: 0;
-      overflow: hidden;
-    }
-
-    .grid-lines {
-      position: absolute;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
-      background-size: 50px 50px;
-      animation: gridPulse 4s ease-in-out infinite;
-    }
-
-    @keyframes gridPulse {
-      0%, 100% { opacity: 0.5; }
-      50% { opacity: 1; }
-    }
-
-    .scan-line {
-      position: absolute;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--hud-primary), var(--hud-secondary), transparent);
-      box-shadow: var(--hud-glow);
-      animation: scanVertical 4s linear infinite;
-    }
-
-    @keyframes scanVertical {
-      0% { top: -10px; opacity: 0; }
-      10% { opacity: 1; }
-      90% { opacity: 1; }
-      100% { top: 100%; opacity: 0; }
-    }
-
-    .particle {
-      position: absolute;
-      width: 4px;
-      height: 4px;
-      background: var(--hud-primary);
-      border-radius: 50%;
-      animation: float 8s ease-in-out infinite;
-      opacity: 0.6;
-    }
-
-    @keyframes float {
-      0%, 100% { transform: translateY(0) translateX(0); opacity: 0.3; }
-      25% { transform: translateY(-30px) translateX(10px); opacity: 0.8; }
-      50% { transform: translateY(-60px) translateX(-10px); opacity: 0.5; }
-      75% { transform: translateY(-30px) translateX(20px); opacity: 0.8; }
-    }
-
-    .corner-bracket {
-      position: fixed;
-      width: 60px;
-      height: 60px;
-      border: 2px solid var(--hud-primary);
-      opacity: 0.6;
-      z-index: 1000;
-      pointer-events: none;
-    }
-
-    .corner-bracket.top-left { top: 15px; left: 15px; border-right: none; border-bottom: none; animation: cornerPulse 2s ease-in-out infinite; }
-    .corner-bracket.top-right { top: 15px; right: 15px; border-left: none; border-bottom: none; animation: cornerPulse 2s ease-in-out infinite 0.5s; }
-    .corner-bracket.bottom-left { bottom: 15px; left: 15px; border-right: none; border-top: none; animation: cornerPulse 2s ease-in-out infinite 1s; }
-    .corner-bracket.bottom-right { bottom: 15px; right: 15px; border-left: none; border-top: none; animation: cornerPulse 2s ease-in-out infinite 1.5s; }
-
-    @keyframes cornerPulse {
-      0%, 100% { opacity: 0.3; box-shadow: none; }
-      50% { opacity: 1; box-shadow: var(--hud-glow); }
-    }
-
-    /* ============== MAIN CONTAINER ============== */
-    .hud-container {
-      position: relative;
-      z-index: 1;
-      padding: 20px 30px;
-      max-width: 1600px;
+    .container {
+      max-width: 1400px;
       margin: 0 auto;
+      padding: 20px;
     }
 
-    /* ============== HEADER ============== */
-    .hud-header {
+    /* Header */
+    .header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 20px;
-      padding-bottom: 15px;
-      border-bottom: 1px solid var(--hud-border);
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
     }
 
-    .hud-title {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 1.8rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 4px;
-      background: linear-gradient(90deg, var(--hud-primary), var(--hud-secondary));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      animation: titleGlow 2s ease-in-out infinite;
+    .header h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text);
     }
 
-    @keyframes titleGlow {
-      0%, 100% { filter: drop-shadow(0 0 10px var(--hud-primary)); }
-      50% { filter: drop-shadow(0 0 30px var(--hud-primary)) drop-shadow(0 0 60px var(--hud-secondary)); }
-    }
-
-    .hud-nav {
+    .header-nav {
       display: flex;
-      align-items: center;
-      gap: 15px;
+      gap: 12px;
     }
 
     .nav-link {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.7rem;
       padding: 8px 16px;
-      color: var(--hud-primary);
+      color: var(--text-muted);
       text-decoration: none;
-      border: 1px solid var(--hud-border);
-      border-radius: 4px;
-      transition: all 0.3s;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      transition: all 0.2s;
     }
 
     .nav-link:hover {
-      background: rgba(0, 240, 255, 0.1);
-      box-shadow: var(--hud-glow);
+      background: var(--primary);
+      color: white;
     }
 
-    .hud-status {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.7rem;
-      color: var(--hud-accent);
-    }
-
-    .status-indicator {
-      width: 10px;
-      height: 10px;
-      background: var(--hud-accent);
-      border-radius: 50%;
-      animation: statusBlink 1s ease-in-out infinite;
-      box-shadow: 0 0 10px var(--hud-accent);
-    }
-
-    @keyframes statusBlink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-
-    /* ============== TAB NAVIGATION ============== */
-    .tab-nav {
-      display: flex;
-      gap: 4px;
-      background: var(--hud-panel);
-      padding: 4px;
-      border-radius: 8px;
-      border: 1px solid var(--hud-border);
-      margin-bottom: 25px;
-      width: fit-content;
-    }
-
-    .tab-btn {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.75rem;
-      padding: 12px 24px;
-      background: transparent;
-      border: none;
-      border-radius: 6px;
-      color: rgba(255, 255, 255, 0.6);
-      cursor: pointer;
-      transition: all 0.3s;
-      text-transform: uppercase;
-      letter-spacing: 1px;
+    .status-badge {
       display: flex;
       align-items: center;
       gap: 8px;
+      padding: 6px 12px;
+      background: #dcfce7;
+      color: #166534;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: #22c55e;
+      border-radius: 50%;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+    }
+
+    .tab-btn {
+      padding: 10px 20px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.2s;
     }
 
     .tab-btn:hover {
-      color: var(--hud-primary);
-      background: rgba(0, 240, 255, 0.05);
+      background: #f1f5f9;
     }
 
     .tab-btn.active {
-      background: linear-gradient(135deg, var(--hud-primary), var(--hud-secondary));
-      color: #000;
-      font-weight: 600;
-      box-shadow: 0 0 20px rgba(0, 240, 255, 0.4);
-    }
-
-    .tab-btn svg {
-      width: 16px;
-      height: 16px;
+      background: var(--primary);
+      color: white;
     }
 
     .tab-content {
@@ -241,616 +126,322 @@
 
     .tab-content.active {
       display: block;
-      animation: fadeIn 0.4s ease;
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* ============== SECTION HEADER ============== */
+    /* Section Header */
     .section-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
       margin-bottom: 20px;
     }
 
     .section-title {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 1.1rem;
-      text-transform: uppercase;
-      letter-spacing: 2px;
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text);
       display: flex;
       align-items: center;
       gap: 12px;
     }
 
-    .section-title .holo-text {
-      background: linear-gradient(90deg, var(--hud-primary), var(--hud-accent), var(--hud-secondary));
-      background-size: 200% auto;
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      animation: holoShift 3s linear infinite;
-    }
-
-    @keyframes holoShift {
-      0% { background-position: 0% center; }
-      100% { background-position: 200% center; }
-    }
-
     .cycle-badge {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.7rem;
-      padding: 6px 14px;
-      background: linear-gradient(135deg, rgba(0, 240, 255, 0.2), rgba(255, 0, 255, 0.2));
-      border: 1px solid var(--hud-primary);
-      border-radius: 20px;
-      color: var(--hud-primary);
-      animation: badgePulse 2s ease-in-out infinite;
-    }
-
-    @keyframes badgePulse {
-      0%, 100% { box-shadow: 0 0 5px var(--hud-primary); }
-      50% { box-shadow: 0 0 20px var(--hud-primary), 0 0 40px var(--hud-secondary); }
-    }
-
-    .section-subtitle {
-      font-size: 0.8rem;
-      color: rgba(255, 255, 255, 0.5);
-      margin-top: 4px;
-    }
-
-    .section-subtitle::before {
-      content: '>';
-      margin-right: 8px;
-      color: var(--hud-accent);
-      animation: blink 1s infinite;
-    }
-
-    @keyframes blink {
-      0%, 50% { opacity: 1; }
-      51%, 100% { opacity: 0; }
-    }
-
-    /* ============== CIRCULAR GAUGES ============== */
-    .gauge-row {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 20px;
-      margin-bottom: 25px;
-    }
-
-    .gauge-container {
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 20px 15px;
-      background: var(--hud-panel);
-      border: 1px solid var(--hud-border);
-      border-radius: 16px;
-      transition: all 0.3s;
-    }
-
-    .gauge-container::before,
-    .gauge-container::after {
-      content: '';
-      position: absolute;
-      width: 12px;
-      height: 12px;
-      border: 2px solid var(--hud-primary);
-      opacity: 0.5;
-    }
-
-    .gauge-container::before { top: 8px; left: 8px; border-right: none; border-bottom: none; }
-    .gauge-container::after { bottom: 8px; right: 8px; border-left: none; border-top: none; }
-
-    .gauge-container:hover {
-      border-color: var(--hud-primary);
-      box-shadow: var(--hud-glow), inset 0 0 30px rgba(0, 240, 255, 0.05);
-      transform: translateY(-4px);
-    }
-
-    .gauge-container:hover::before,
-    .gauge-container:hover::after {
-      opacity: 1;
-      border-color: var(--hud-secondary);
-    }
-
-    .gauge-svg {
-      width: 120px;
-      height: 120px;
-      transform: rotate(-90deg);
-    }
-
-    .gauge-bg {
-      fill: none;
-      stroke: rgba(0, 240, 255, 0.1);
-      stroke-width: 8;
-    }
-
-    .gauge-fill {
-      fill: none;
-      stroke: url(#gaugeGradient);
-      stroke-width: 8;
-      stroke-linecap: round;
-      stroke-dasharray: 314;
-      stroke-dashoffset: 314;
-      transition: stroke-dashoffset 2s ease-out;
-      filter: drop-shadow(0 0 8px var(--hud-primary));
-    }
-
-    .gauge-center {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -60%);
-      text-align: center;
-    }
-
-    .gauge-value {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 1.8rem;
-      font-weight: 700;
-      color: var(--hud-primary);
-      text-shadow: 0 0 15px var(--hud-primary);
-    }
-
-    .gauge-label {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.6rem;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: rgba(255, 255, 255, 0.6);
-      margin-top: 4px;
-    }
-
-    .gauge-sublabel {
-      font-size: 0.65rem;
-      color: var(--hud-accent);
-      margin-top: 10px;
-    }
-
-    /* ============== DATA PANELS ============== */
-    .data-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-      margin-bottom: 20px;
-    }
-
-    .data-panel {
-      background: var(--hud-panel);
-      border: 1px solid var(--hud-border);
-      border-radius: 16px;
-      padding: 20px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .data-panel::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--hud-primary), var(--hud-secondary), transparent);
-    }
-
-    .data-panel:hover {
-      border-color: var(--hud-primary);
-      box-shadow: 0 0 30px rgba(0, 240, 255, 0.15);
-    }
-
-    .data-panel.wide {
-      grid-column: span 2;
-    }
-
-    .panel-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 15px;
-    }
-
-    .panel-title {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.8rem;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      color: var(--hud-primary);
-    }
-
-    .panel-badge {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.6rem;
       padding: 4px 10px;
-      background: rgba(0, 240, 255, 0.1);
-      border: 1px solid var(--hud-border);
-      border-radius: 12px;
-      color: var(--hud-primary);
-    }
-
-    .chart-container {
-      height: 250px;
-      position: relative;
-    }
-
-    .chart-container.tall {
-      height: 300px;
-    }
-
-    /* ============== DATA TABLE ============== */
-    .data-table-panel {
-      background: var(--hud-panel);
-      border: 1px solid var(--hud-border);
-      border-radius: 16px;
-      padding: 20px;
-      margin-bottom: 20px;
-      position: relative;
-      overflow-x: auto;
-    }
-
-    .data-table-panel::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--hud-accent), var(--hud-primary), transparent);
-    }
-
-    .hud-table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    .hud-table th {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.65rem;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: var(--hud-primary);
-      padding: 12px;
-      text-align: left;
-      border-bottom: 1px solid var(--hud-border);
-      background: rgba(0, 240, 255, 0.03);
-    }
-
-    .hud-table td {
-      padding: 12px;
-      font-size: 0.85rem;
-      border-bottom: 1px solid rgba(0, 240, 255, 0.05);
-    }
-
-    .hud-table tr:hover td {
-      background: rgba(0, 240, 255, 0.05);
-    }
-
-    .hud-table tr.total-row {
-      background: rgba(0, 240, 255, 0.08);
+      background: var(--primary);
+      color: white;
+      border-radius: 4px;
+      font-size: 0.75rem;
       font-weight: 600;
     }
 
-    .hud-table tr.total-row td {
-      border-top: 2px solid var(--hud-primary);
+    .section-subtitle {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      margin-top: 4px;
     }
 
-    .pod-indicator {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
+    /* Cards Grid */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
     }
 
-    .pod-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      animation: dotPulse 2s ease-in-out infinite;
-    }
-
-    @keyframes dotPulse {
-      0%, 100% { box-shadow: 0 0 4px currentColor; }
-      50% { box-shadow: 0 0 12px currentColor; }
-    }
-
-    .progress-bar {
-      width: 100px;
-      height: 6px;
-      background: rgba(0, 240, 255, 0.1);
-      border-radius: 3px;
-      overflow: hidden;
-    }
-
-    .progress-fill {
-      height: 100%;
-      border-radius: 3px;
-      transition: width 1.5s ease-out;
-    }
-
-    .progress-fill.green { background: linear-gradient(90deg, var(--hud-accent), #00ffaa); box-shadow: 0 0 8px var(--hud-accent); }
-    .progress-fill.orange { background: linear-gradient(90deg, var(--hud-warning), #ffcc00); box-shadow: 0 0 8px var(--hud-warning); }
-    .progress-fill.red { background: linear-gradient(90deg, var(--hud-danger), #ff4488); box-shadow: 0 0 8px var(--hud-danger); }
-    .progress-fill.blue { background: linear-gradient(90deg, var(--hud-primary), var(--hud-secondary)); box-shadow: 0 0 8px var(--hud-primary); }
-
-    .status-tag {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.6rem;
-      padding: 4px 8px;
-      border-radius: 4px;
-      text-transform: uppercase;
-    }
-
-    .status-tag.success { background: rgba(0, 255, 136, 0.15); color: var(--hud-accent); border: 1px solid var(--hud-accent); }
-    .status-tag.warning { background: rgba(255, 170, 0, 0.15); color: var(--hud-warning); border: 1px solid var(--hud-warning); }
-    .status-tag.danger { background: rgba(255, 0, 85, 0.15); color: var(--hud-danger); border: 1px solid var(--hud-danger); }
-    .status-tag.info { background: rgba(0, 240, 255, 0.15); color: var(--hud-primary); border: 1px solid var(--hud-primary); }
-
-    /* ============== INSIGHTS PANEL ============== */
-    .insights-panel {
-      background: var(--hud-panel);
-      border: 1px solid var(--hud-border);
-      border-radius: 16px;
+    .card {
+      background: var(--card-bg);
+      border-radius: 12px;
       padding: 20px;
-      margin-bottom: 20px;
+      border: 1px solid var(--border);
     }
 
-    .insights-panel::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--hud-secondary), var(--hud-primary), transparent);
+    .card-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
     }
 
+    .card-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .card-value.success { color: var(--success); }
+    .card-value.warning { color: var(--warning); }
+    .card-value.danger { color: var(--danger); }
+    .card-value.primary { color: var(--primary); }
+
+    .card-detail {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Charts Grid */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .chart-card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid var(--border);
+    }
+
+    .chart-card.full-width {
+      grid-column: span 2;
+    }
+
+    .chart-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 16px;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 300px;
+    }
+
+    .chart-container.small {
+      height: 250px;
+    }
+
+    /* Tables */
+    .table-card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+
+    .data-table th {
+      text-align: left;
+      padding: 12px;
+      background: #f8fafc;
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 2px solid var(--border);
+    }
+
+    .data-table td {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .data-table tr:hover td {
+      background: #f8fafc;
+    }
+
+    .status-pill {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .status-pill.done { background: #dcfce7; color: #166534; }
+    .status-pill.progress { background: #fef3c7; color: #92400e; }
+    .status-pill.pending { background: #f1f5f9; color: #475569; }
+
+    /* Insights */
     .insights-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 15px;
-      margin-top: 15px;
+      gap: 16px;
     }
 
     .insight-card {
-      padding: 15px;
-      background: rgba(0, 0, 0, 0.3);
-      border: 1px solid var(--hud-border);
-      border-left: 3px solid var(--hud-primary);
-      border-radius: 8px;
-      transition: all 0.3s;
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--primary);
     }
 
-    .insight-card:hover {
-      border-color: var(--hud-primary);
-      box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
-      transform: translateX(4px);
-    }
-
-    .insight-card.highlight { border-left-color: var(--hud-accent); }
-    .insight-card.warning { border-left-color: var(--hud-warning); }
-    .insight-card.action { border-left-color: var(--hud-secondary); }
-    .insight-card.trend { border-left-color: var(--hud-purple); }
+    .insight-card.highlight { border-left-color: var(--success); }
+    .insight-card.warning { border-left-color: var(--warning); }
+    .insight-card.action { border-left-color: var(--danger); }
 
     .insight-type {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.55rem;
+      font-size: 0.625rem;
       text-transform: uppercase;
-      letter-spacing: 2px;
-      color: var(--hud-primary);
-      margin-bottom: 8px;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .insight-title {
+      font-weight: 600;
+      font-size: 0.875rem;
+      margin-bottom: 4px;
     }
 
     .insight-text {
       font-size: 0.8rem;
-      color: rgba(255, 255, 255, 0.8);
-      line-height: 1.4;
+      color: var(--text-muted);
     }
 
-    /* ============== FOOTER ============== */
-    .hud-footer {
+    /* Footer */
+    .footer {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 15px 0;
-      margin-top: 20px;
-      border-top: 1px solid var(--hud-border);
-      font-family: 'Orbitron', sans-serif;
-      font-size: 0.65rem;
-      color: rgba(255, 255, 255, 0.5);
+      padding-top: 16px;
+      margin-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 0.75rem;
+      color: var(--text-muted);
     }
 
-    /* ============== LOADING ============== */
-    .loading-ring {
-      width: 40px;
-      height: 40px;
-      border: 3px solid var(--hud-border);
-      border-top-color: var(--hud-primary);
+    /* Loading */
+    .loading {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 40px;
+    }
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--primary);
       border-radius: 50%;
-      animation: spin 1s linear infinite;
-      margin: 0 auto;
+      animation: spin 0.8s linear infinite;
     }
 
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
 
-    /* ============== RESPONSIVE ============== */
-    @media (max-width: 1200px) {
-      .gauge-row { grid-template-columns: repeat(2, 1fr); }
-      .data-row { grid-template-columns: 1fr; }
-      .data-panel.wide { grid-column: span 1; }
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .cards-grid { grid-template-columns: repeat(2, 1fr); }
+      .charts-grid { grid-template-columns: 1fr; }
+      .chart-card.full-width { grid-column: span 1; }
       .insights-grid { grid-template-columns: repeat(2, 1fr); }
     }
 
-    @media (max-width: 768px) {
-      .gauge-row { grid-template-columns: 1fr; }
+    @media (max-width: 640px) {
+      .cards-grid { grid-template-columns: 1fr; }
       .insights-grid { grid-template-columns: 1fr; }
-      .corner-bracket { display: none; }
-      .hud-title { font-size: 1.2rem; letter-spacing: 2px; }
-      .hud-container { padding: 15px; }
-      .tab-btn { padding: 10px 16px; font-size: 0.65rem; }
-      .hud-nav { display: none; }
+      .header { flex-direction: column; gap: 12px; align-items: flex-start; }
+      .tabs { overflow-x: auto; }
     }
   </style>
 </head>
 <body>
-  <!-- Animated Background -->
-  <div class="hud-background">
-    <div class="grid-lines"></div>
-    <div class="scan-line"></div>
-  </div>
-
-  <!-- Corner Decorations -->
-  <div class="corner-bracket top-left"></div>
-  <div class="corner-bracket top-right"></div>
-  <div class="corner-bracket bottom-left"></div>
-  <div class="corner-bracket bottom-right"></div>
-
-  <!-- SVG Definitions -->
-  <svg width="0" height="0">
-    <defs>
-      <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="0%" style="stop-color:#00f0ff"/>
-        <stop offset="50%" style="stop-color:#00ff88"/>
-        <stop offset="100%" style="stop-color:#ff00ff"/>
-      </linearGradient>
-    </defs>
-  </svg>
-
-  <div class="hud-container">
+  <div class="container">
     <!-- Header -->
-    <header class="hud-header">
-      <h1 class="hud-title">KPI Command Center</h1>
-      <nav class="hud-nav">
+    <header class="header">
+      <h1>KPI Dashboard</h1>
+      <nav class="header-nav">
         <a href="index.html" class="nav-link">Chat</a>
         <a href="charts.html" class="nav-link">Charts</a>
       </nav>
-      <div class="hud-status">
-        <div class="status-indicator"></div>
-        <span>LIVE</span>
-        <span id="currentTime">--:--:--</span>
+      <div class="status-badge">
+        <span class="status-dot"></span>
+        <span>Live</span>
+        <span id="currentTime">--:--</span>
       </div>
     </header>
 
-    <!-- Tab Navigation -->
-    <nav class="tab-nav">
-      <button class="tab-btn active" data-tab="del-kpi">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-          <polyline points="22 4 12 14.01 9 11.01"/>
-        </svg>
-        DEL Metrics
-      </button>
-      <button class="tab-btn" data-tab="feature-kpi">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="18" height="18" rx="2"/>
-          <line x1="3" y1="9" x2="21" y2="9"/>
-          <line x1="9" y1="21" x2="9" y2="9"/>
-        </svg>
-        Feature Execution
-      </button>
-      <button class="tab-btn" data-tab="pod-health">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-        </svg>
-        Pod Health
-      </button>
+    <!-- Tabs -->
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="del-kpi">DEL Metrics</button>
+      <button class="tab-btn" data-tab="feature-kpi">Feature Execution</button>
+      <button class="tab-btn" data-tab="pod-health">Pod Health</button>
     </nav>
 
-    <!-- ==================== DEL METRICS TAB ==================== -->
+    <!-- DEL Metrics Tab -->
     <div class="tab-content active" id="del-kpi">
       <div class="section-header">
-        <div>
-          <h2 class="section-title">
-            <span class="holo-text">DEL Delivery Analysis</span>
-            <span class="cycle-badge" id="delCycleBadge">C2</span>
-          </h2>
-          <p class="section-subtitle">Cycle 2 baseline tracking (Jan 20 - Feb 2, 2026)</p>
+        <h2 class="section-title">
+          DEL Delivery Analysis
+          <span class="cycle-badge" id="delCycleBadge">C2</span>
+        </h2>
+        <p class="section-subtitle">Tracking committed vs completed deliverables</p>
+      </div>
+
+      <div class="cards-grid" id="delCards">
+        <div class="card">
+          <div class="card-label">Delivery Rate</div>
+          <div class="card-value primary" id="deliveryRate">--%</div>
+          <div class="card-detail" id="deliveryDetail">Loading...</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Committed</div>
+          <div class="card-value" id="committedCount">--</div>
+          <div class="card-detail">Total DELs</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Completed</div>
+          <div class="card-value success" id="completedCount">--</div>
+          <div class="card-detail">Done</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Pending</div>
+          <div class="card-value warning" id="pendingCount">--</div>
+          <div class="card-detail">Remaining</div>
         </div>
       </div>
 
-      <!-- DEL Gauges -->
-      <section class="gauge-row" id="delGauges">
-        <div class="gauge-container">
-          <svg class="gauge-svg" viewBox="0 0 100 100">
-            <circle class="gauge-bg" cx="50" cy="50" r="45"/>
-            <circle class="gauge-fill" id="deliveryGauge" cx="50" cy="50" r="45"/>
-          </svg>
-          <div class="gauge-center">
-            <div class="gauge-value" id="deliveryValue">0%</div>
-            <div class="gauge-label">Delivery Rate</div>
-          </div>
-          <div class="gauge-sublabel" id="deliveryDetail">Loading...</div>
-        </div>
-        <div class="gauge-container">
-          <svg class="gauge-svg" viewBox="0 0 100 100">
-            <circle class="gauge-bg" cx="50" cy="50" r="45"/>
-            <circle class="gauge-fill" id="committedGauge" cx="50" cy="50" r="45" style="stroke: var(--hud-secondary);"/>
-          </svg>
-          <div class="gauge-center">
-            <div class="gauge-value" id="committedValue" style="color: var(--hud-secondary);">0</div>
-            <div class="gauge-label">Committed</div>
-          </div>
-          <div class="gauge-sublabel">Cycle Baseline</div>
-        </div>
-        <div class="gauge-container">
-          <svg class="gauge-svg" viewBox="0 0 100 100">
-            <circle class="gauge-bg" cx="50" cy="50" r="45"/>
-            <circle class="gauge-fill" id="completedGauge" cx="50" cy="50" r="45" style="stroke: var(--hud-accent);"/>
-          </svg>
-          <div class="gauge-center">
-            <div class="gauge-value" id="completedValue" style="color: var(--hud-accent);">0</div>
-            <div class="gauge-label">Completed</div>
-          </div>
-          <div class="gauge-sublabel">Done this cycle</div>
-        </div>
-        <div class="gauge-container">
-          <svg class="gauge-svg" viewBox="0 0 100 100">
-            <circle class="gauge-bg" cx="50" cy="50" r="45"/>
-            <circle class="gauge-fill" id="pendingGauge" cx="50" cy="50" r="45" style="stroke: var(--hud-warning);"/>
-          </svg>
-          <div class="gauge-center">
-            <div class="gauge-value" id="pendingValue" style="color: var(--hud-warning);">0</div>
-            <div class="gauge-label">Pending</div>
-          </div>
-          <div class="gauge-sublabel">To be delivered</div>
-        </div>
-      </section>
-
-      <!-- DEL Charts -->
-      <section class="data-row">
-        <div class="data-panel">
-          <div class="panel-header">
-            <h3 class="panel-title">Delivery % by Pod</h3>
-            <span class="panel-badge" id="delChartBadge">C2</span>
-          </div>
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-title">Delivery by Pod</div>
           <div class="chart-container">
-            <canvas id="delDeliveryChart"></canvas>
+            <canvas id="deliveryChart"></canvas>
           </div>
         </div>
-        <div class="data-panel">
-          <div class="panel-header">
-            <h3 class="panel-title">Committed vs Completed</h3>
-            <span class="panel-badge">All Pods</span>
-          </div>
+        <div class="chart-card">
+          <div class="chart-title">Cycle Trend</div>
           <div class="chart-container">
-            <canvas id="delComparisonChart"></canvas>
+            <canvas id="trendChart"></canvas>
           </div>
         </div>
-      </section>
+      </div>
 
-      <!-- DEL Table -->
-      <section class="data-table-panel">
-        <div class="panel-header">
-          <h3 class="panel-title">Pod Status Matrix</h3>
-          <span class="panel-badge">Real-time</span>
-        </div>
-        <table class="hud-table">
+      <div class="table-card">
+        <div class="chart-title">Pod Details</div>
+        <table class="data-table" id="podTable">
           <thead>
             <tr>
               <th>Pod</th>
@@ -858,240 +449,102 @@
               <th>Completed</th>
               <th>Pending</th>
               <th>Delivery %</th>
-              <th>Status</th>
-              <th>Progress</th>
             </tr>
           </thead>
-          <tbody id="delTableBody">
-            <tr><td colspan="7" style="text-align: center; padding: 30px;"><div class="loading-ring"></div></td></tr>
+          <tbody id="podTableBody">
+            <tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr>
           </tbody>
         </table>
-      </section>
-
-      <!-- Cycle Trend -->
-      <section class="data-panel wide">
-        <div class="panel-header">
-          <h3 class="panel-title">Delivery Trend Analysis</h3>
-          <span class="panel-badge">C1 - C6</span>
-        </div>
-        <div class="chart-container tall">
-          <canvas id="delTrendChart"></canvas>
-        </div>
-      </section>
+      </div>
     </div>
 
-    <!-- ==================== FEATURE EXECUTION TAB ==================== -->
+    <!-- Feature Execution Tab -->
     <div class="tab-content" id="feature-kpi">
       <div class="section-header">
-        <div>
-          <h2 class="section-title">
-            <span class="holo-text">Feature Execution Matrix</span>
-            <span class="cycle-badge">All Pods</span>
-          </h2>
-          <p class="section-subtitle">Feature-level analysis across the entire organization</p>
+        <h2 class="section-title">Feature Execution</h2>
+        <p class="section-subtitle">Project progress across all pods</p>
+      </div>
+
+      <div class="cards-grid">
+        <div class="card">
+          <div class="card-label">Total Features</div>
+          <div class="card-value" id="totalFeatures">--</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Done</div>
+          <div class="card-value success" id="doneFeatures">--</div>
+        </div>
+        <div class="card">
+          <div class="card-label">In Flight</div>
+          <div class="card-value warning" id="inFlightFeatures">--</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Not Started</div>
+          <div class="card-value" id="notStartedFeatures">--</div>
         </div>
       </div>
 
-      <!-- Feature Gauges -->
-      <section class="gauge-row" id="featureGauges">
-        <div class="gauge-container">
-          <svg class="gauge-svg" viewBox="0 0 100 100">
-            <circle class="gauge-bg" cx="50" cy="50" r="45"/>
-            <circle class="gauge-fill" id="featureTotalGauge" cx="50" cy="50" r="45"/>
-          </svg>
-          <div class="gauge-center">
-            <div class="gauge-value" id="featureTotalValue">0</div>
-            <div class="gauge-label">Total Features</div>
-          </div>
-          <div class="gauge-sublabel">Planned across org</div>
-        </div>
-        <div class="gauge-container">
-          <svg class="gauge-svg" viewBox="0 0 100 100">
-            <circle class="gauge-bg" cx="50" cy="50" r="45"/>
-            <circle class="gauge-fill" id="featureDoneGauge" cx="50" cy="50" r="45" style="stroke: var(--hud-accent);"/>
-          </svg>
-          <div class="gauge-center">
-            <div class="gauge-value" id="featureDoneValue" style="color: var(--hud-accent);">0</div>
-            <div class="gauge-label">Done</div>
-          </div>
-          <div class="gauge-sublabel" id="featureDonePct">--</div>
-        </div>
-        <div class="gauge-container">
-          <svg class="gauge-svg" viewBox="0 0 100 100">
-            <circle class="gauge-bg" cx="50" cy="50" r="45"/>
-            <circle class="gauge-fill" id="featureFlightGauge" cx="50" cy="50" r="45" style="stroke: var(--hud-warning);"/>
-          </svg>
-          <div class="gauge-center">
-            <div class="gauge-value" id="featureFlightValue" style="color: var(--hud-warning);">0</div>
-            <div class="gauge-label">In Flight</div>
-          </div>
-          <div class="gauge-sublabel">Active work</div>
-        </div>
-        <div class="gauge-container">
-          <svg class="gauge-svg" viewBox="0 0 100 100">
-            <circle class="gauge-bg" cx="50" cy="50" r="45"/>
-            <circle class="gauge-fill" id="featureBacklogGauge" cx="50" cy="50" r="45" style="stroke: var(--hud-danger);"/>
-          </svg>
-          <div class="gauge-center">
-            <div class="gauge-value" id="featureBacklogValue" style="color: var(--hud-danger);">0</div>
-            <div class="gauge-label">Not Started</div>
-          </div>
-          <div class="gauge-sublabel">Backlog</div>
-        </div>
-      </section>
-
-      <!-- Feature Charts -->
-      <section class="data-row">
-        <div class="data-panel">
-          <div class="panel-header">
-            <h3 class="panel-title">Feature Progress Overview</h3>
-            <span class="panel-badge" id="featureProgressBadge">--</span>
-          </div>
-          <div class="chart-container">
-            <canvas id="featureDonutChart"></canvas>
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-title">Feature Status</div>
+          <div class="chart-container small">
+            <canvas id="featureChart"></canvas>
           </div>
         </div>
-        <div class="data-panel">
-          <div class="panel-header">
-            <h3 class="panel-title">Features by Pod</h3>
-            <span class="panel-badge">Stacked</span>
-          </div>
-          <div class="chart-container">
-            <canvas id="featureStackedChart"></canvas>
+        <div class="chart-card">
+          <div class="chart-title">Features by Pod</div>
+          <div class="chart-container small">
+            <canvas id="podFeatureChart"></canvas>
           </div>
         </div>
-      </section>
-
-      <!-- Feature Table -->
-      <section class="data-table-panel">
-        <div class="panel-header">
-          <h3 class="panel-title">Feature Movement by Pod</h3>
-          <span class="panel-badge">Detailed</span>
-        </div>
-        <table class="hud-table">
-          <thead>
-            <tr>
-              <th>Pod</th>
-              <th>Planned</th>
-              <th>Done</th>
-              <th>In Flight</th>
-              <th>Not Started</th>
-              <th>Completion</th>
-              <th>Progress</th>
-            </tr>
-          </thead>
-          <tbody id="featureTableBody">
-            <tr><td colspan="7" style="text-align: center; padding: 30px;"><div class="loading-ring"></div></td></tr>
-          </tbody>
-        </table>
-      </section>
-
-      <!-- Feature Insights -->
-      <section class="insights-panel">
-        <div class="panel-header">
-          <h3 class="panel-title">Feature Intelligence</h3>
-          <span class="panel-badge">AI Analysis</span>
-        </div>
-        <div class="insights-grid" id="featureInsightsGrid">
-          <div class="insight-card highlight">
-            <div class="insight-type">Top Performer</div>
-            <div class="insight-text" id="insightTopPerformer">Loading...</div>
-          </div>
-          <div class="insight-card warning">
-            <div class="insight-type">Needs Attention</div>
-            <div class="insight-text" id="insightNeedsAttention">Loading...</div>
-          </div>
-          <div class="insight-card trend">
-            <div class="insight-type">Velocity</div>
-            <div class="insight-text" id="insightVelocity">Loading...</div>
-          </div>
-        </div>
-      </section>
+      </div>
     </div>
 
-    <!-- ==================== POD HEALTH TAB ==================== -->
+    <!-- Pod Health Tab -->
     <div class="tab-content" id="pod-health">
       <div class="section-header">
-        <div>
-          <h2 class="section-title">
-            <span class="holo-text">Pod Health Diagnostics</span>
-            <span class="cycle-badge">Multi-Metric</span>
-          </h2>
-          <p class="section-subtitle">Comprehensive health analysis across all dimensions</p>
+        <h2 class="section-title">Pod Health Overview</h2>
+        <p class="section-subtitle">Performance metrics across teams</p>
+      </div>
+
+      <div class="charts-grid">
+        <div class="chart-card full-width">
+          <div class="chart-title">Pod Comparison</div>
+          <div class="chart-container">
+            <canvas id="podHealthChart"></canvas>
+          </div>
         </div>
       </div>
 
-      <!-- Pod Health Radar -->
-      <section class="data-panel wide" style="margin-bottom: 20px;">
-        <div class="panel-header">
-          <h3 class="panel-title">Pod Health Radar</h3>
-          <span class="panel-badge">5 Dimensions</span>
+      <div class="section-header" style="margin-top: 24px;">
+        <h2 class="section-title">AI Insights</h2>
+      </div>
+      <div class="insights-grid" id="insightsGrid">
+        <div class="insight-card">
+          <div class="insight-type">Loading</div>
+          <div class="insight-text">Analyzing data...</div>
         </div>
-        <div class="chart-container tall">
-          <canvas id="podHealthRadar"></canvas>
-        </div>
-      </section>
-
-      <!-- AI Insights -->
-      <section class="insights-panel">
-        <div class="panel-header">
-          <h3 class="panel-title">AI Insights Engine</h3>
-          <span class="panel-badge">Analyzing</span>
-        </div>
-        <div class="insights-grid" id="aiInsightsGrid">
-          <div class="insight-card">
-            <div class="insight-type">Loading...</div>
-            <div class="insight-text">Fetching insights...</div>
-          </div>
-        </div>
-      </section>
+      </div>
     </div>
 
     <!-- Footer -->
-    <footer class="hud-footer">
-      <div>Last Updated: <span id="lastUpdated">--</span></div>
-      <div>Source: Linear API | Live Data</div>
+    <footer class="footer">
+      <span>Last updated: <span id="lastUpdate">--</span></span>
+      <span>KPI Dashboard v2.0</span>
     </footer>
   </div>
 
   <script>
-    // Chart.js configuration
-    Chart.defaults.color = 'rgba(255, 255, 255, 0.7)';
-    Chart.defaults.borderColor = 'rgba(0, 240, 255, 0.1)';
+    // Register Chart.js datalabels plugin
     Chart.register(ChartDataLabels);
 
-    const POD_COLORS = {
-      'FTS': '#ff00ff',
-      'GTS': '#00ff88',
-      'Control Center': '#ffaa00',
-      'Talent Studio': '#ff0055',
-      'Platform': '#00f0ff',
-      'Growth & Reuse': '#a855f7',
-    };
+    // Chart defaults
+    Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    Chart.defaults.plugins.datalabels.display = true;
+    Chart.defaults.plugins.datalabels.color = '#1e293b';
+    Chart.defaults.plugins.datalabels.font = { weight: 'bold', size: 11 };
 
-    let kpiData = null;
-    let charts = {};
-
-    // Create particles
-    function createParticles() {
-      const bg = document.querySelector('.hud-background');
-      for (let i = 0; i < 25; i++) {
-        const p = document.createElement('div');
-        p.className = 'particle';
-        p.style.left = Math.random() * 100 + '%';
-        p.style.top = Math.random() * 100 + '%';
-        p.style.animationDelay = Math.random() * 5 + 's';
-        p.style.animationDuration = (6 + Math.random() * 4) + 's';
-        bg.appendChild(p);
-      }
-    }
-
-    // Clock
-    function updateClock() {
-      document.getElementById('currentTime').textContent = new Date().toLocaleTimeString();
-    }
-    setInterval(updateClock, 1000);
-    updateClock();
+    let chartInstances = {};
 
     // Tab switching
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -1103,514 +556,256 @@
       });
     });
 
-    // Animate gauge
-    function animateGauge(elementId, percentage, maxValue = 100) {
-      const gauge = document.getElementById(elementId);
-      if (!gauge) return;
-      const circumference = 2 * Math.PI * 45;
-      const offset = circumference - (Math.min(percentage, maxValue) / maxValue) * circumference;
-      gauge.style.strokeDasharray = circumference;
-      setTimeout(() => { gauge.style.strokeDashoffset = offset; }, 100);
+    // Update time
+    function updateTime() {
+      const now = new Date();
+      document.getElementById('currentTime').textContent = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     }
+    setInterval(updateTime, 1000);
+    updateTime();
 
-    // Animate counter
-    function animateValue(elementId, target, suffix = '', duration = 1500) {
-      const element = document.getElementById(elementId);
-      if (!element) return;
-      const startTime = performance.now();
-      function update(currentTime) {
-        const elapsed = currentTime - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        const easeOut = 1 - Math.pow(1 - progress, 3);
-        const current = Math.floor(target * easeOut);
-        element.textContent = current + suffix;
-        if (progress < 1) requestAnimationFrame(update);
-      }
-      requestAnimationFrame(update);
-    }
-
-    // Fetch data
-    async function fetchData() {
+    // Fetch and render data
+    async function loadDashboard() {
       try {
-        const response = await fetch('/api/charts/data');
-        const data = await response.json();
-        if (!data.success) throw new Error(data.error);
-        return data;
+        const [chartData, insightsData] = await Promise.all([
+          fetch('/api/charts/data').then(r => r.json()),
+          fetch('/api/charts/insights').then(r => r.json())
+        ]);
+
+        if (chartData.success) {
+          renderDelMetrics(chartData);
+          renderFeatureMetrics(chartData);
+          renderPodHealth(chartData);
+        }
+
+        if (insightsData.success) {
+          renderInsights(insightsData.insights);
+        }
+
+        document.getElementById('lastUpdate').textContent = new Date().toLocaleString('en-IN');
       } catch (err) {
-        console.error('Error:', err);
-        return null;
+        console.error('Dashboard load error:', err);
       }
     }
 
-    // Initialize DEL section
-    function initDELSection(data) {
-      const metrics = data.heroMetrics;
-      const currentCycle = data.currentCycle || 'C2';
+    function renderDelMetrics(data) {
+      const { heroMetrics, deliveryChart, cycleTrendChart } = data;
 
-      // Update badges
-      document.getElementById('delCycleBadge').textContent = currentCycle;
-      document.getElementById('delChartBadge').textContent = currentCycle;
+      // Update cards
+      document.getElementById('deliveryRate').textContent = heroMetrics.overallDeliveryPct + '%';
+      document.getElementById('committedCount').textContent = heroMetrics.totalCommitted;
+      document.getElementById('completedCount').textContent = heroMetrics.totalCompleted;
+      document.getElementById('pendingCount').textContent = heroMetrics.totalCommitted - heroMetrics.totalCompleted;
+      document.getElementById('deliveryDetail').textContent = `${heroMetrics.totalCompleted}/${heroMetrics.totalCommitted} DELs`;
+      document.getElementById('delCycleBadge').textContent = heroMetrics.currentCycle;
 
-      // Animate gauges
-      animateGauge('deliveryGauge', metrics.overallDeliveryPct);
-      animateGauge('committedGauge', metrics.totalCommitted, 50);
-      animateGauge('completedGauge', metrics.totalCompleted, 50);
-      animateGauge('pendingGauge', metrics.totalCommitted - metrics.totalCompleted, 50);
-
-      // Animate values
-      animateValue('deliveryValue', metrics.overallDeliveryPct, '%');
-      animateValue('committedValue', metrics.totalCommitted);
-      animateValue('completedValue', metrics.totalCompleted);
-      animateValue('pendingValue', metrics.totalCommitted - metrics.totalCompleted);
-
-      document.getElementById('deliveryDetail').textContent = `${metrics.totalCompleted} of ${metrics.totalCommitted}`;
-
-      // Delivery Chart
-      const chartData = data.deliveryChart.data;
-      const ctx1 = document.getElementById('delDeliveryChart').getContext('2d');
-      charts.delDelivery = new Chart(ctx1, {
+      // Delivery chart
+      if (chartInstances.delivery) chartInstances.delivery.destroy();
+      chartInstances.delivery = new Chart(document.getElementById('deliveryChart'), {
         type: 'bar',
         data: {
-          labels: chartData.labels,
+          labels: deliveryChart.data.labels,
           datasets: [{
-            data: chartData.datasets[0].data,
-            backgroundColor: chartData.labels.map(l => POD_COLORS[l] || '#00f0ff'),
-            borderColor: chartData.labels.map(l => POD_COLORS[l] || '#00f0ff'),
-            borderWidth: 1,
-            borderRadius: 6,
-            barThickness: 28,
+            label: 'Delivery %',
+            data: deliveryChart.data.datasets[0].data,
+            backgroundColor: deliveryChart.data.datasets[0].data.map(v =>
+              v >= 70 ? '#10b981' : v >= 40 ? '#f59e0b' : '#ef4444'
+            ),
+            borderRadius: 6
           }]
         },
         options: {
-          indexAxis: 'y',
           responsive: true,
           maintainAspectRatio: false,
-          animation: { duration: 1500, easing: 'easeOutQuart', delay: ctx => ctx.dataIndex * 100 },
           plugins: {
             legend: { display: false },
             datalabels: {
-              color: '#fff',
-              anchor: 'end',
-              align: 'end',
-              offset: 4,
-              font: { weight: 'bold', size: 11, family: 'Orbitron' },
-              formatter: v => v > 0 ? `${v}%` : '',
-            },
-            tooltip: {
-              backgroundColor: 'rgba(10, 10, 18, 0.95)',
-              borderColor: 'rgba(0, 240, 255, 0.3)',
-              borderWidth: 1,
-              padding: 12,
-              callbacks: {
-                label: ctx => {
-                  const i = ctx.dataIndex;
-                  return [
-                    `Delivery: ${ctx.raw}%`,
-                    `Committed: ${data.deliveryChart.meta.committed[i]}`,
-                    `Completed: ${data.deliveryChart.meta.completed[i]}`,
-                  ];
-                }
-              }
-            }
-          },
-          scales: {
-            x: { max: 100, grid: { color: 'rgba(0, 240, 255, 0.05)' }, ticks: { callback: v => v + '%' } },
-            y: { grid: { display: false } }
-          }
-        }
-      });
-
-      // Comparison Chart
-      const ctx2 = document.getElementById('delComparisonChart').getContext('2d');
-      charts.delComparison = new Chart(ctx2, {
-        type: 'bar',
-        data: {
-          labels: chartData.labels,
-          datasets: [
-            {
-              label: 'Committed',
-              data: data.deliveryChart.meta.committed,
-              backgroundColor: 'rgba(0, 240, 255, 0.7)',
-              borderColor: '#00f0ff',
-              borderWidth: 1,
-              borderRadius: 4,
-            },
-            {
-              label: 'Completed',
-              data: data.deliveryChart.meta.completed,
-              backgroundColor: 'rgba(0, 255, 136, 0.7)',
-              borderColor: '#00ff88',
-              borderWidth: 1,
-              borderRadius: 4,
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: { duration: 1500, delay: ctx => ctx.dataIndex * 80 },
-          plugins: {
-            legend: { position: 'top' },
-            datalabels: {
-              color: '#fff',
               anchor: 'end',
               align: 'top',
-              offset: 2,
-              font: { weight: 'bold', size: 10, family: 'Orbitron' },
-              formatter: v => v > 0 ? v : '',
-            },
-            tooltip: { backgroundColor: 'rgba(10, 10, 18, 0.95)', borderColor: 'rgba(0, 240, 255, 0.3)', borderWidth: 1 }
+              formatter: v => v + '%'
+            }
           },
           scales: {
-            y: { grid: { color: 'rgba(0, 240, 255, 0.05)' } },
-            x: { grid: { display: false } }
+            y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } }
           }
         }
       });
 
-      // DEL Table
-      const tbody = document.getElementById('delTableBody');
-      let html = '';
-      let totalC = 0, totalD = 0;
+      // Trend chart
+      if (cycleTrendChart && cycleTrendChart.data) {
+        if (chartInstances.trend) chartInstances.trend.destroy();
+        const colors = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+        chartInstances.trend = new Chart(document.getElementById('trendChart'), {
+          type: 'line',
+          data: {
+            labels: cycleTrendChart.data.labels,
+            datasets: cycleTrendChart.data.datasets.map((ds, i) => ({
+              ...ds,
+              borderColor: colors[i % colors.length],
+              backgroundColor: colors[i % colors.length] + '20',
+              tension: 0.3,
+              borderWidth: 2,
+              pointRadius: 4
+            }))
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              datalabels: { display: false }
+            },
+            scales: {
+              y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } }
+            }
+          }
+        });
+      }
 
-      chartData.labels.forEach((pod, i) => {
-        const committed = data.deliveryChart.meta.committed[i];
-        const completed = data.deliveryChart.meta.completed[i];
+      // Pod table
+      const tbody = document.getElementById('podTableBody');
+      tbody.innerHTML = deliveryChart.data.labels.map((pod, i) => {
+        const pct = deliveryChart.data.datasets[0].data[i];
+        const committed = deliveryChart.meta.committed[i];
+        const completed = deliveryChart.meta.completed[i];
         const pending = committed - completed;
-        const pct = committed > 0 ? Math.round((completed / committed) * 100) : 0;
-        totalC += committed;
-        totalD += completed;
-
-        const statusClass = pct >= 80 ? 'success' : pct >= 40 ? 'warning' : 'danger';
-        const statusText = pct >= 80 ? 'ON TRACK' : pct >= 40 ? 'AT RISK' : 'CRITICAL';
-        const progressClass = pct >= 80 ? 'green' : pct >= 40 ? 'orange' : 'red';
-        const color = POD_COLORS[pod] || '#00f0ff';
-
-        html += `<tr>
-          <td><span class="pod-indicator"><span class="pod-dot" style="background: ${color}; color: ${color};"></span>${pod}</span></td>
+        const statusClass = pct >= 70 ? 'done' : pct >= 40 ? 'progress' : 'pending';
+        return `<tr>
+          <td><strong>${pod}</strong></td>
           <td>${committed}</td>
           <td>${completed}</td>
           <td>${pending}</td>
-          <td>${pct}%</td>
-          <td><span class="status-tag ${statusClass}">${statusText}</span></td>
-          <td><div class="progress-bar"><div class="progress-fill ${progressClass}" style="width: ${pct}%;"></div></div></td>
+          <td><span class="status-pill ${statusClass}">${pct}%</span></td>
         </tr>`;
-      });
-
-      const totalPct = totalC > 0 ? Math.round((totalD / totalC) * 100) : 0;
-      html += `<tr class="total-row">
-        <td><strong>TOTAL</strong></td>
-        <td><strong>${totalC}</strong></td>
-        <td><strong>${totalD}</strong></td>
-        <td><strong>${totalC - totalD}</strong></td>
-        <td><strong>${totalPct}%</strong></td>
-        <td><span class="status-tag info">OVERALL</span></td>
-        <td><div class="progress-bar"><div class="progress-fill blue" style="width: ${totalPct}%;"></div></div></td>
-      </tr>`;
-
-      tbody.innerHTML = html;
-
-      // Trend Chart
-      const ctx3 = document.getElementById('delTrendChart').getContext('2d');
-      const trendData = data.cycleTrendChart.data;
-      const enhancedDatasets = trendData.datasets.map(ds => ({
-        ...ds,
-        borderWidth: 3,
-        pointRadius: 6,
-        pointHoverRadius: 10,
-        pointBackgroundColor: ds.borderColor,
-        pointBorderColor: '#0a0a12',
-        pointBorderWidth: 2,
-        fill: true,
-        backgroundColor: ds.borderColor + '20',
-        tension: 0.3,
-      }));
-
-      charts.delTrend = new Chart(ctx3, {
-        type: 'line',
-        data: { ...trendData, datasets: enhancedDatasets },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { intersect: false, mode: 'index' },
-          animation: { duration: 2000 },
-          plugins: {
-            legend: { position: 'top' },
-            datalabels: {
-              color: '#fff',
-              anchor: 'end',
-              align: 'top',
-              offset: 4,
-              font: { weight: 'bold', size: 9, family: 'Orbitron' },
-              backgroundColor: 'rgba(0,0,0,0.5)',
-              borderRadius: 4,
-              padding: { top: 2, bottom: 2, left: 4, right: 4 },
-              formatter: v => v !== null ? `${v}%` : '',
-            },
-            tooltip: {
-              backgroundColor: 'rgba(10, 10, 18, 0.95)',
-              borderColor: 'rgba(0, 240, 255, 0.3)',
-              borderWidth: 1,
-              callbacks: { label: ctx => ctx.raw !== null ? `${ctx.dataset.label}: ${ctx.raw}%` : null }
-            }
-          },
-          scales: {
-            y: { min: 0, max: 100, grid: { color: 'rgba(0, 240, 255, 0.05)' }, ticks: { callback: v => v + '%' } },
-            x: { grid: { color: 'rgba(0, 240, 255, 0.05)' } }
-          }
-        }
-      });
+      }).join('');
     }
 
-    // Initialize Feature section
-    function initFeatureSection(data) {
-      const metrics = data.heroMetrics;
-      const featureData = data.featureChart;
+    function renderFeatureMetrics(data) {
+      const { heroMetrics, featureChart } = data;
 
-      const totalFeatures = metrics.totalFeatures;
-      const done = metrics.featuresDone;
-      const inFlight = metrics.featuresInFlight;
-      const notStarted = totalFeatures - done - inFlight;
-      const donePct = totalFeatures > 0 ? Math.round((done / totalFeatures) * 100) : 0;
+      document.getElementById('totalFeatures').textContent = heroMetrics.totalFeatures;
+      document.getElementById('doneFeatures').textContent = heroMetrics.featuresDone;
+      document.getElementById('inFlightFeatures').textContent = heroMetrics.featuresInFlight;
+      document.getElementById('notStartedFeatures').textContent = heroMetrics.featuresNotStarted;
 
-      // Animate gauges
-      animateGauge('featureTotalGauge', totalFeatures, 60);
-      animateGauge('featureDoneGauge', done, 60);
-      animateGauge('featureFlightGauge', inFlight, 60);
-      animateGauge('featureBacklogGauge', notStarted, 60);
-
-      // Animate values
-      animateValue('featureTotalValue', totalFeatures);
-      animateValue('featureDoneValue', done);
-      animateValue('featureFlightValue', inFlight);
-      animateValue('featureBacklogValue', notStarted);
-
-      document.getElementById('featureDonePct').textContent = `${donePct}% complete`;
-      document.getElementById('featureProgressBadge').textContent = `${totalFeatures} total`;
-
-      // Feature Donut
-      const ctx4 = document.getElementById('featureDonutChart').getContext('2d');
-      charts.featureDonut = new Chart(ctx4, {
-        type: 'doughnut',
-        data: {
-          labels: ['Done', 'In Flight', 'Not Started'],
-          datasets: [{
-            data: [done, inFlight, notStarted],
-            backgroundColor: ['rgba(0, 255, 136, 0.8)', 'rgba(255, 170, 0, 0.8)', 'rgba(100, 116, 139, 0.8)'],
-            borderColor: ['#00ff88', '#ffaa00', '#64748b'],
-            borderWidth: 2,
-            hoverBorderWidth: 3,
-            hoverOffset: 10,
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          cutout: '60%',
-          animation: { animateRotate: true, animateScale: true, duration: 1500 },
-          plugins: {
-            legend: { position: 'bottom' },
-            datalabels: {
-              color: '#fff',
-              font: { weight: 'bold', size: 13, family: 'Orbitron' },
-              formatter: (value, ctx) => {
-                const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
-                const pct = total > 0 ? Math.round((value / total) * 100) : 0;
-                return value > 0 ? `${value}\n(${pct}%)` : '';
-              },
-              textAlign: 'center',
-            },
-            tooltip: { backgroundColor: 'rgba(10, 10, 18, 0.95)', borderColor: 'rgba(0, 240, 255, 0.3)', borderWidth: 1 }
-          }
-        }
-      });
-
-      // Feature by Pod (stacked)
-      const pods = Object.keys(POD_COLORS);
-      const featureRows = [
-        { pod: 'FTS', planned: 17, done: 1, inFlight: 3, notStarted: 13 },
-        { pod: 'GTS', planned: 8, done: 0, inFlight: 0, notStarted: 8 },
-        { pod: 'Control Center', planned: 11, done: 0, inFlight: 6, notStarted: 5 },
-        { pod: 'Talent Studio', planned: 6, done: 0, inFlight: 2, notStarted: 4 },
-        { pod: 'Platform', planned: 13, done: 0, inFlight: 3, notStarted: 10 },
-        { pod: 'Growth & Reuse', planned: 1, done: 0, inFlight: 0, notStarted: 1 },
-      ];
-
-      const ctx5 = document.getElementById('featureStackedChart').getContext('2d');
-      charts.featureStacked = new Chart(ctx5, {
-        type: 'bar',
-        data: {
-          labels: featureRows.map(r => r.pod),
-          datasets: [
-            {
-              label: 'Done',
-              data: featureRows.map(r => r.done),
-              backgroundColor: 'rgba(0, 255, 136, 0.8)',
-              borderColor: '#00ff88',
-              borderWidth: 1,
-            },
-            {
-              label: 'In Flight',
-              data: featureRows.map(r => r.inFlight),
-              backgroundColor: 'rgba(255, 170, 0, 0.8)',
-              borderColor: '#ffaa00',
-              borderWidth: 1,
-            },
-            {
-              label: 'Not Started',
-              data: featureRows.map(r => r.notStarted),
-              backgroundColor: 'rgba(100, 116, 139, 0.8)',
-              borderColor: '#64748b',
-              borderWidth: 1,
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: { duration: 1500 },
-          scales: {
-            x: { stacked: true, grid: { display: false } },
-            y: { stacked: true, grid: { color: 'rgba(0, 240, 255, 0.05)' } }
+      // Feature pie chart
+      if (featureChart && featureChart.data) {
+        if (chartInstances.feature) chartInstances.feature.destroy();
+        chartInstances.feature = new Chart(document.getElementById('featureChart'), {
+          type: 'doughnut',
+          data: {
+            labels: featureChart.data.labels,
+            datasets: [{
+              data: featureChart.data.datasets[0].data,
+              backgroundColor: ['#10b981', '#f59e0b', '#94a3b8'],
+              borderWidth: 0
+            }]
           },
-          plugins: {
-            legend: { position: 'top' },
-            datalabels: {
-              color: '#fff',
-              font: { weight: 'bold', size: 10, family: 'Orbitron' },
-              formatter: v => v > 0 ? v : '',
-              display: ctx => ctx.dataset.data[ctx.dataIndex] > 0,
-            },
-            tooltip: { backgroundColor: 'rgba(10, 10, 18, 0.95)', borderColor: 'rgba(0, 240, 255, 0.3)', borderWidth: 1 }
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              datalabels: {
+                formatter: (v, ctx) => {
+                  const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                  return total > 0 ? Math.round(v / total * 100) + '%' : '';
+                },
+                color: '#fff',
+                font: { weight: 'bold', size: 14 }
+              }
+            }
           }
-        }
-      });
+        });
+      }
 
-      // Feature Table
-      const tbody = document.getElementById('featureTableBody');
-      let html = '';
-      let totals = { planned: 0, done: 0, inFlight: 0, notStarted: 0 };
-
-      featureRows.forEach(row => {
-        const pct = row.planned > 0 ? Math.round((row.done / row.planned) * 100) : 0;
-        const activePct = row.planned > 0 ? Math.round(((row.done + row.inFlight) / row.planned) * 100) : 0;
-        totals.planned += row.planned;
-        totals.done += row.done;
-        totals.inFlight += row.inFlight;
-        totals.notStarted += row.notStarted;
-
-        const color = POD_COLORS[row.pod] || '#00f0ff';
-        const progressClass = activePct >= 50 ? 'green' : 'blue';
-
-        html += `<tr>
-          <td><span class="pod-indicator"><span class="pod-dot" style="background: ${color}; color: ${color};"></span>${row.pod}</span></td>
-          <td>${row.planned}</td>
-          <td>${row.done}</td>
-          <td>${row.inFlight}</td>
-          <td>${row.notStarted}</td>
-          <td><span class="status-tag ${pct > 0 ? 'success' : 'info'}">${pct}%</span></td>
-          <td><div class="progress-bar"><div class="progress-fill ${progressClass}" style="width: ${activePct}%;"></div></div></td>
-        </tr>`;
-      });
-
-      const totalPct = totals.planned > 0 ? Math.round((totals.done / totals.planned) * 100) : 0;
-      const totalActivePct = totals.planned > 0 ? Math.round(((totals.done + totals.inFlight) / totals.planned) * 100) : 0;
-
-      html += `<tr class="total-row">
-        <td><strong>TOTAL</strong></td>
-        <td><strong>${totals.planned}</strong></td>
-        <td><strong>${totals.done}</strong></td>
-        <td><strong>${totals.inFlight}</strong></td>
-        <td><strong>${totals.notStarted}</strong></td>
-        <td><span class="status-tag info">${totalPct}%</span></td>
-        <td><div class="progress-bar"><div class="progress-fill blue" style="width: ${totalActivePct}%;"></div></div></td>
-      </tr>`;
-
-      tbody.innerHTML = html;
-
-      // Feature Insights
-      document.getElementById('insightTopPerformer').textContent =
-        'FTS is the only pod with completed features (1 done). Control Center leads in-flight work with 6 features actively being worked on.';
-      document.getElementById('insightNeedsAttention').textContent =
-        'GTS and Growth & Reuse have 0 features in flight. Consider checking blockers or resource allocation.';
-      document.getElementById('insightVelocity').textContent =
-        `${totals.inFlight} features in flight across ${featureRows.filter(r => r.inFlight > 0).length} pods. ${Math.round((totals.done + totals.inFlight) / totals.planned * 100)}% of planned features have active work.`;
+      // Pod features bar chart
+      if (chartInstances.podFeature) chartInstances.podFeature.destroy();
+      const podNames = Object.keys(data.heroMetrics.topPerformer ? { [data.heroMetrics.topPerformer.pod]: 1 } : {});
+      // Use delivery chart labels as pod names
+      if (data.deliveryChart) {
+        chartInstances.podFeature = new Chart(document.getElementById('podFeatureChart'), {
+          type: 'bar',
+          data: {
+            labels: data.deliveryChart.data.labels,
+            datasets: [{
+              label: 'Active Projects',
+              data: data.deliveryChart.meta.committed,
+              backgroundColor: '#4f46e5',
+              borderRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              datalabels: { anchor: 'end', align: 'top' }
+            }
+          }
+        });
+      }
     }
 
-    // Initialize Pod Health section
-    function initPodHealthSection(data) {
-      const ctx = document.getElementById('podHealthRadar').getContext('2d');
-      const healthData = data.podHealthChart.data;
+    function renderPodHealth(data) {
+      const { podHealthChart } = data;
+      if (!podHealthChart || !podHealthChart.data) return;
 
-      const enhancedDatasets = healthData.datasets.map(ds => ({
-        ...ds,
-        borderWidth: 2,
-        pointRadius: 5,
-        pointHoverRadius: 8,
-        pointBorderWidth: 2,
-        pointBorderColor: '#0a0a12',
-      }));
+      if (chartInstances.health) chartInstances.health.destroy();
+      const colors = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
-      charts.podHealth = new Chart(ctx, {
+      chartInstances.health = new Chart(document.getElementById('podHealthChart'), {
         type: 'radar',
-        data: { ...healthData, datasets: enhancedDatasets },
+        data: {
+          labels: podHealthChart.data.labels,
+          datasets: podHealthChart.data.datasets.map((ds, i) => ({
+            ...ds,
+            borderColor: colors[i % colors.length],
+            backgroundColor: colors[i % colors.length] + '20',
+            borderWidth: 2,
+            pointRadius: 4,
+            pointBackgroundColor: colors[i % colors.length]
+          }))
+        },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          animation: { duration: 1500 },
           plugins: {
-            legend: { position: 'bottom' },
-            datalabels: { display: false },
-            tooltip: { backgroundColor: 'rgba(10, 10, 18, 0.95)', borderColor: 'rgba(0, 240, 255, 0.3)', borderWidth: 1 }
+            datalabels: { display: false }
           },
           scales: {
             r: {
-              min: 0,
+              beginAtZero: true,
               max: 100,
-              grid: { color: 'rgba(0, 240, 255, 0.1)' },
-              angleLines: { color: 'rgba(0, 240, 255, 0.1)' },
-              pointLabels: { color: 'rgba(255, 255, 255, 0.8)', font: { size: 11, weight: '500', family: 'Rajdhani' } },
-              ticks: { display: false }
+              ticks: { stepSize: 20 }
             }
           }
         }
       });
     }
 
-    // Load AI Insights
-    async function loadInsights() {
-      try {
-        const response = await fetch('/api/charts/insights');
-        const data = await response.json();
-        if (!data.success || !data.insights) return;
-
-        const grid = document.getElementById('aiInsightsGrid');
-        grid.innerHTML = data.insights.slice(0, 6).map(insight => `
-          <div class="insight-card ${insight.type}">
-            <div class="insight-type">${insight.title}</div>
-            <div class="insight-text">${insight.text}</div>
-          </div>
-        `).join('');
-      } catch (err) {
-        console.error('Error loading insights:', err);
+    function renderInsights(insights) {
+      const grid = document.getElementById('insightsGrid');
+      if (!insights || insights.length === 0) {
+        grid.innerHTML = '<div class="insight-card"><div class="insight-text">No insights available</div></div>';
+        return;
       }
+
+      grid.innerHTML = insights.slice(0, 6).map(insight => {
+        const typeClass = insight.type === 'highlight' ? 'highlight' :
+                         insight.type === 'warning' ? 'warning' :
+                         insight.type === 'action' ? 'action' : '';
+        return `<div class="insight-card ${typeClass}">
+          <div class="insight-type">${insight.type}</div>
+          <div class="insight-title">${insight.title}</div>
+          <div class="insight-text">${insight.text}</div>
+        </div>`;
+      }).join('');
     }
 
-    // Initialize dashboard
-    async function init() {
-      createParticles();
-      kpiData = await fetchData();
+    // Load dashboard on page load
+    loadDashboard();
 
-      if (kpiData) {
-        initDELSection(kpiData);
-        initFeatureSection(kpiData);
-        initPodHealthSection(kpiData);
-        loadInsights();
-        document.getElementById('lastUpdated').textContent = new Date(kpiData.fetchedAt).toLocaleString();
-      }
-    }
-
-    document.addEventListener('DOMContentLoaded', init);
+    // Refresh every 5 minutes
+    setInterval(loadDashboard, 5 * 60 * 1000);
   </script>
 </body>
 </html>
