@@ -143,11 +143,13 @@ async function fetchPodFeatureReadiness(projects) {
     const cleanName = project.name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
 
     for (const feature of projReadiness.features) {
+      // Check if this specific feature is a tech debt (by feature title)
+      const featureTechDebt = techDebt || isTechDebt(feature.title);
       const featureData = {
         project: cleanName + (techDebt ? " (Tech Debt)" : ""),
-        feature: feature.title, // Full name, no truncation
-        prd: techDebt ? "nr" : (feature.phases.PRD?.status || "na"),
-        design: techDebt ? "nr" : (feature.phases.Design?.status || "na"),
+        feature: feature.title + (featureTechDebt ? " (Tech Debt)" : ""),
+        prd: featureTechDebt ? "nr" : (feature.phases.PRD?.status || "na"),
+        design: featureTechDebt ? "nr" : (feature.phases.Design?.status || "na"),
         beDev: feature.phases["BE Dev"]?.status || "na",
         feDev: feature.phases["FE Dev"]?.status || "na",
         pat: feature.phases.PAT?.status || "na",
