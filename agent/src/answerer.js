@@ -1123,12 +1123,14 @@ async function generateMobilePodNarrative(pod, projectCount, stats, projects, po
     if (completedDels.length > 0) {
       const rows = completedDels.map(d => ({
         id: d.identifier,
-        title: d.title.length > 45 ? d.title.substring(0, 45) + "..." : d.title,
+        title: d.title.length > 35 ? d.title.substring(0, 35) + "..." : d.title,
+        project: cleanProject(d.project),
         status: "Done"
       }));
       out += jsonTable(`✅ Completed DELs (${completedDels.length})`, [
         { key: "id", header: "ID" },
         { key: "title", header: "Title" },
+        { key: "project", header: "Project" },
         { key: "status", header: "Status" }
       ], rows);
       out += "\n\n";
