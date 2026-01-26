@@ -1587,64 +1587,132 @@ async function answer(question, snapshot, options = {}) {
         return `Project "${cmd.projectName}" not found in any pod.\n\nTry: "pods" to see available pods, then "pod <name> projects" to list projects.`;
       }
 
+      const cleanProjectName = (name) => name
+        .replace(/^Q1 2026\s*:\s*/i, "")
+        .replace(/^Q1 26\s*-\s*/i, "");
+
       // Build comprehensive output
-      let output = `## ${projectResult.project.name}\n\n`;
+      const proj = projectResult.project;
+      const stateEmoji = proj.normalizedState === "done" ? "✅" : proj.normalizedState === "in_flight" ? "🔄" : "⏳";
+      let output = `## ${stateEmoji} ${cleanProjectName(proj.name)}\n\n`;
 
-      // Project facts
-      output += `**Pod:** ${matchedPod}\n`;
-      output += `**State:** ${projectResult.project.normalizedState}\n`;
-      output += `**Lead:** ${projectResult.project.lead || "Not assigned"}\n`;
-      if (projectResult.project.targetDate) output += `**Target Date:** ${projectResult.project.targetDate}\n`;
-      if (projectResult.project.url) output += `**URL:** ${projectResult.project.url}\n`;
+      // Overview table
+      const overviewRows = [
+        { metric: "Pod", value: matchedPod },
+        { metric: "State", value: proj.normalizedState === "in_flight" ? "In Progress" : proj.normalizedState === "done" ? "Done" : "Not Started" },
+        { metric: "Lead", value: proj.lead || "Not assigned" },
+        { metric: "Total Issues", value: projectResult.issueStats.total },
+        { metric: "Active", value: projectResult.issueStats.active },
+        { metric: "Completed", value: projectResult.issueStats.done },
+      ];
+      if (projectResult.issueStats.blockers > 0) overviewRows.push({ metric: "⚠️ Blockers", value: projectResult.issueStats.blockers });
+      if (proj.targetDate) overviewRows.push({ metric: "Target Date", value: proj.targetDate });
 
-      // Issue stats
-      output += `\n### Issues (${projectResult.issueStats.total} total)\n`;
-      output += `- Active: ${projectResult.issueStats.active}\n`;
-      output += `- Done: ${projectResult.issueStats.done}\n`;
-      if (projectResult.issueStats.blockers > 0) output += `- **Blockers: ${projectResult.issueStats.blockers}**\n`;
-      if (projectResult.issueStats.highPriority > 0) output += `- High Priority: ${projectResult.issueStats.highPriority}\n`;
+      output += jsonTable("📊 Overview", [
+        { key: "metric", header: "Metric" },
+        { key: "value", header: "Value" }
+      ], overviewRows);
+      output += "\n\n";
 
-      // Blockers
-      if (projectResult.blockerIssues?.length > 0) {
-        output += `\n### Blockers\n`;
-        for (const issue of projectResult.blockerIssues) {
-          output += `- [${issue.identifier}] ${issue.title} (${issue.assignee || "unassigned"})\n`;
+      // Feature readiness (PRD, Design, Dev phases)
+      try {
+        const linear = getLinearClientForSlack();
+        if (linear && proj.id) {
+          const readiness = await linear.getFeatureReadiness(proj.id);
+          if (readiness && readiness.features.length > 0) {
+            const statusEmoji = (s) => {
+              if (s === "done") return "✅";
+              if (s === "in_progress") return "🔄";
+              if (s === "not_started") return "⏳";
+              return "—";
+            };
+
+            const rows = readiness.features.map(f => ({
+              feature: f.title.length > 30 ? f.title.substring(0, 30) + "..." : f.title,
+              prd: statusEmoji(f.phases.PRD?.status || "na"),
+              design: statusEmoji(f.phases.Design?.status || "na"),
+              be: statusEmoji(f.phases["BE Dev"]?.status || "na"),
+              fe: statusEmoji(f.phases["FE Dev"]?.status || "na"),
+              pat: statusEmoji(f.phases.PAT?.status || "na"),
+              qa: statusEmoji(f.phases.QA?.status || "na")
+            }));
+
+            output += jsonTable("📋 Feature Phases", [
+              { key: "feature", header: "Feature" },
+              { key: "prd", header: "PRD" },
+              { key: "design", header: "Design" },
+              { key: "be", header: "BE" },
+              { key: "fe", header: "FE" },
+              { key: "pat", header: "PAT" },
+              { key: "qa", header: "QA" }
+            ], rows);
+            output += "\n\n";
+          }
         }
+      } catch (e) {
+        // Skip feature readiness if fetch fails
       }
 
-      // Active issues (recent)
+      // Active issues table
       if (projectResult.activeIssues?.length > 0) {
-        output += `\n### Active Issues (recent)\n`;
-        for (const issue of projectResult.activeIssues.slice(0, 8)) {
-          const marker = issue.isBlocker ? " [BLOCKER]" : "";
-          output += `- [${issue.identifier}] ${issue.title}${marker}\n`;
-        }
+        const rows = projectResult.activeIssues.slice(0, 10).map(issue => ({
+          id: issue.identifier,
+          title: issue.title.length > 35 ? issue.title.substring(0, 35) + "..." : issue.title,
+          assignee: issue.assignee || "Unassigned",
+          state: issue.state || "Unknown",
+          blocker: issue.isBlocker ? "⚠️" : ""
+        }));
+
+        output += jsonTable(`🔄 Active Issues (${projectResult.activeIssues.length})`, [
+          { key: "id", header: "ID" },
+          { key: "title", header: "Title" },
+          { key: "assignee", header: "Assignee" },
+          { key: "state", header: "State" },
+          { key: "blocker", header: "" }
+        ], rows);
+        output += "\n\n";
       }
 
-      // Comments summary
-      if (commentsResult?.success && commentsResult.commentCount > 0) {
-        output += `\n### Recent Activity (last 14 days)\n`;
-        output += `**${commentsResult.commentCount} comments** across issues\n\n`;
+      // Blockers table
+      if (projectResult.blockerIssues?.length > 0) {
+        const rows = projectResult.blockerIssues.map(issue => ({
+          id: issue.identifier,
+          title: issue.title.length > 40 ? issue.title.substring(0, 40) + "..." : issue.title,
+          assignee: issue.assignee || "Unassigned"
+        }));
 
-        // Try to summarize with LLM
+        output += jsonTable(`⚠️ Blockers (${projectResult.blockerIssues.length})`, [
+          { key: "id", header: "ID" },
+          { key: "title", header: "Title" },
+          { key: "assignee", header: "Assignee" }
+        ], rows);
+        output += "\n\n";
+      }
+
+      // Comments/Discussion summary with Slack
+      const discussionSummary = await fetchPodCommentsSummary(matchedPod, [proj]);
+      if (discussionSummary && discussionSummary.summary) {
+        output += `### 💬 Recent Discussions\n${discussionSummary.summary}\n\n`;
+      } else if (commentsResult?.success && commentsResult.commentCount > 0) {
+        output += `### 💬 Recent Activity (${commentsResult.commentCount} comments)\n`;
         try {
           const messages = [
             { role: "system", content: commentSummaryPrompt() },
-            { role: "user", content: `Project: ${projectResult.project.name}\nPod: ${matchedPod}\n\nRecent comments:\n${commentsResult.mergedText}` },
+            { role: "user", content: `Project: ${proj.name}\nPod: ${matchedPod}\n\nRecent comments:\n${commentsResult.mergedText}` },
           ];
           const summary = await fuelixChat({ messages });
-          output += summary + "\n";
+          output += summary + "\n\n";
         } catch (e) {
-          // LLM failed, show raw comments
           for (const c of commentsResult.comments.slice(0, 5)) {
             output += `- **[${c.issueIdentifier}]** ${c.author}: ${c.body.substring(0, 150)}${c.body.length > 150 ? "..." : ""}\n`;
           }
+          output += "\n";
         }
-      } else {
-        output += `\n### Recent Activity\nNo comments found in the last 14 days.\n`;
       }
 
-      output += `\n*Source: LIVE from Linear (${projectResult.fetchedAt})*`;
+      const hasSlack = discussionSummary && discussionSummary.hasSlackData;
+      const sourceStr = hasSlack ? "Linear + Slack" : "Linear";
+      output += `---\nSource: ${sourceStr} | ${formatToIST(projectResult.fetchedAt)}`;
       return output;
     }
   }
