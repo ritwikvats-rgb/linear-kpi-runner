@@ -504,12 +504,12 @@
     <div class="tab-content" id="pod-health">
       <div class="section-header">
         <h2 class="section-title">Pod Health Overview</h2>
-        <p class="section-subtitle">Performance metrics across teams</p>
+        <p class="section-subtitle">DEL completion status across teams</p>
       </div>
 
       <div class="charts-grid">
         <div class="chart-card full-width">
-          <div class="chart-title">Pod Comparison</div>
+          <div class="chart-title">Completed vs Pending DELs by Pod</div>
           <div class="chart-container">
             <canvas id="podHealthChart"></canvas>
           </div>
@@ -746,40 +746,105 @@
     }
 
     function renderPodHealth(data) {
-      const { podHealthChart } = data;
-      if (!podHealthChart || !podHealthChart.data) return;
+      const { podHealthChart, deliveryChart } = data;
+      if (!deliveryChart || !deliveryChart.data) return;
 
       if (chartInstances.health) chartInstances.health.destroy();
-      const colors = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
+      // Create horizontal bar chart showing delivery % per pod
+      const pods = deliveryChart.data.labels;
+      const deliveryPct = deliveryChart.data.datasets[0].data;
+      const committed = deliveryChart.meta.committed;
+      const completed = deliveryChart.meta.completed;
 
       chartInstances.health = new Chart(document.getElementById('podHealthChart'), {
-        type: 'radar',
+        type: 'bar',
         data: {
-          labels: podHealthChart.data.labels,
-          datasets: podHealthChart.data.datasets.map((ds, i) => ({
-            ...ds,
-            borderColor: colors[i % colors.length],
-            backgroundColor: colors[i % colors.length] + '20',
-            borderWidth: 2,
-            pointRadius: 4,
-            pointBackgroundColor: colors[i % colors.length]
-          }))
+          labels: pods,
+          datasets: [
+            {
+              label: 'Completed',
+              data: completed,
+              backgroundColor: '#10b981',
+              borderRadius: 4
+            },
+            {
+              label: 'Pending',
+              data: committed.map((c, i) => c - completed[i]),
+              backgroundColor: '#f59e0b',
+              borderRadius: 4
+            }
+          ]
         },
         options: {
+          indexAxis: 'y',
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
-            datalabels: { display: false }
+            legend: { position: 'top' },
+            datalabels: {
+              display: true,
+              color: '#fff',
+              font: { weight: 'bold', size: 11 }
+            }
           },
           scales: {
-            r: {
-              beginAtZero: true,
-              max: 100,
-              ticks: { stepSize: 20 }
+            x: {
+              stacked: true,
+              title: { display: true, text: 'DELs' }
+            },
+            y: {
+              stacked: true
             }
           }
         }
       });
+
+      // Also render pod health table
+      renderPodHealthTable(data);
+    }
+
+    function renderPodHealthTable(data) {
+      const { deliveryChart, heroMetrics } = data;
+      if (!deliveryChart) return;
+
+      const tableHtml = `
+        <table class="data-table" style="margin-top: 20px;">
+          <thead>
+            <tr>
+              <th>Pod</th>
+              <th>Delivery %</th>
+              <th>Committed</th>
+              <th>Completed</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${deliveryChart.data.labels.map((pod, i) => {
+              const pct = deliveryChart.data.datasets[0].data[i];
+              const committed = deliveryChart.meta.committed[i];
+              const completed = deliveryChart.meta.completed[i];
+              const status = pct >= 70 ? 'On Track' : pct >= 40 ? 'At Risk' : 'Behind';
+              const statusClass = pct >= 70 ? 'done' : pct >= 40 ? 'progress' : 'pending';
+              return `<tr>
+                <td><strong>${pod}</strong></td>
+                <td>${pct}%</td>
+                <td>${committed}</td>
+                <td>${completed}</td>
+                <td><span class="status-pill ${statusClass}">${status}</span></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      `;
+
+      // Insert table after chart
+      const chartCard = document.querySelector('#pod-health .chart-card');
+      if (chartCard) {
+        const existingTable = chartCard.querySelector('.data-table');
+        if (existingTable) existingTable.remove();
+        chartCard.insertAdjacentHTML('beforeend', tableHtml);
+      }
     }
 
     function renderInsights(insights) {
