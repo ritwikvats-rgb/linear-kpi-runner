@@ -1093,16 +1093,17 @@ async function generateMobilePodNarrative(pod, projectCount, stats, projects, po
   }
 
   // ============== DEL TRACKING ==============
+  // Clean project name - remove "Q1 2026 : " prefix
+  const cleanProject = (name) => {
+    if (!name) return "-";
+    return name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
+  };
+
   if (cycleDels.length > 0) {
     const pendingDels = cycleDels.filter(d => !d.isCompleted);
     const completedDels = cycleDels.filter(d => d.isCompleted);
 
     if (pendingDels.length > 0) {
-      // Clean project name - remove "Q1 2026 : " prefix
-      const cleanProject = (name) => {
-        if (!name) return "-";
-        return name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
-      };
       const rows = pendingDels.map(d => ({
         id: d.identifier,
         title: d.title.length > 30 ? d.title.substring(0, 30) + "..." : d.title,
