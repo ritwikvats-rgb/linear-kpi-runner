@@ -84,11 +84,10 @@
     }
 
     .message {
-      max-width: 85%;
+      max-width: 90%;
       padding: 16px 20px;
       border-radius: 12px;
-      line-height: 1.5;
-      white-space: pre-wrap;
+      line-height: 1.6;
       font-size: 14px;
     }
 
@@ -96,8 +95,6 @@
       background: white;
       border: 1px solid #e5e5e5;
       align-self: flex-start;
-      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
-      font-size: 13px;
     }
 
     .message.user {
@@ -111,13 +108,101 @@
       font-style: italic;
     }
 
-    .message h2, .message h3 {
-      margin: 16px 0 8px 0;
-      font-size: 14px;
+    /* Response Styling */
+    .response-header {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1e293b;
+      margin: 16px 0 12px 0;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e2e8f0;
     }
 
-    .message h2:first-child, .message h3:first-child {
+    .response-header:first-child {
       margin-top: 0;
+    }
+
+    .response-subheader {
+      font-size: 14px;
+      font-weight: 600;
+      color: #475569;
+      margin: 14px 0 8px 0;
+    }
+
+    /* Dynamic Table Styling */
+    .data-table-wrap {
+      margin: 12px 0;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #e2e8f0;
+      overflow-x: auto;
+    }
+
+    .table-title {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      padding: 10px 14px;
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .data-table th {
+      background: #f8fafc;
+      color: #475569;
+      font-weight: 600;
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 2px solid #e2e8f0;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+
+    .data-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #f1f5f9;
+      color: #334155;
+    }
+
+    .data-table tr:hover td {
+      background: #f8fafc;
+    }
+
+    .data-table tr.total-row {
+      background: #f1f5f9;
+      font-weight: 600;
+    }
+
+    /* Status colors */
+    .status-done { color: #059669; font-weight: 500; }
+    .status-progress { color: #d97706; font-weight: 500; }
+    .status-pending { color: #6b7280; }
+    .status-todo { color: #3b82f6; }
+    .status-review { color: #8b5cf6; }
+    .status-backlog { color: #94a3b8; }
+
+    .greeting {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 24px;
+      border-radius: 12px;
+      margin-bottom: 8px;
+    }
+
+    .greeting h2 {
+      margin-bottom: 8px;
+    }
+
+    .greeting p {
+      opacity: 0.9;
+      font-size: 14px;
     }
 
     .quick-actions {
@@ -200,120 +285,7 @@
       cursor: not-allowed;
     }
 
-    .greeting {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 24px;
-      border-radius: 12px;
-      margin-bottom: 8px;
-    }
-
-    .greeting h2 {
-      margin-bottom: 8px;
-    }
-
-    .greeting p {
-      opacity: 0.9;
-      font-size: 14px;
-    }
-
-    /* Dynamic Table Styling */
-    .data-table-container {
-      margin: 12px 0;
-      border-radius: 8px;
-      overflow: hidden;
-      border: 1px solid #e2e8f0;
-    }
-
-    .table-title {
-      background: linear-gradient(135deg, #667eea, #764ba2);
-      color: white;
-      padding: 10px 14px;
-      font-weight: 600;
-      font-size: 13px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    }
-
-    .data-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 13px;
-    }
-
-    .data-table th {
-      background: #f8fafc;
-      color: #475569;
-      font-weight: 600;
-      padding: 10px 12px;
-      text-align: left;
-      border-bottom: 2px solid #e2e8f0;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .data-table td {
-      padding: 10px 12px;
-      border-bottom: 1px solid #f1f5f9;
-      color: #334155;
-    }
-
-    .data-table tr:hover td {
-      background: #f8fafc;
-    }
-
-    .data-table tr.total-row {
-      background: #f1f5f9;
-      font-weight: 600;
-    }
-
-    .data-table tr.total-row td {
-      border-top: 2px solid #cbd5e1;
-    }
-
-    /* Status colors */
-    .status-done { color: #059669; font-weight: 500; }
-    .status-progress { color: #d97706; font-weight: 500; }
-    .status-pending { color: #6b7280; }
-
-    /* Percentage colors */
-    .pct-high { color: #059669; font-weight: 600; }
-    .pct-med { color: #d97706; font-weight: 600; }
-    .pct-low { color: #dc2626; font-weight: 600; }
-
-    /* Response headers */
-    .response-header {
-      font-size: 15px;
-      font-weight: 600;
-      color: #1e293b;
-      margin: 16px 0 8px 0;
-      padding-bottom: 6px;
-      border-bottom: 2px solid #e2e8f0;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    }
-
-    .response-subheader {
-      font-size: 13px;
-      font-weight: 600;
-      color: #475569;
-      margin: 12px 0 6px 0;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    }
-
-    .empty-table {
-      color: #94a3b8;
-      font-style: italic;
-      padding: 12px;
-    }
-
-    /* Override monospace for assistant messages with tables */
-    .message.assistant {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 14px;
-    }
-
-    /* ============== MOBILE RESPONSIVE ============== */
+    /* Mobile responsive */
     @media (max-width: 768px) {
       header {
         padding: 12px 16px;
@@ -332,124 +304,45 @@
         margin-right: 4px;
       }
 
-      .charts-link svg {
-        width: 14px;
-        height: 14px;
-      }
-
-      header .status {
-        font-size: 10px;
-        order: -1;
-        width: 100%;
-        justify-content: flex-end;
-      }
-
       .chat-container {
         padding: 12px;
-        gap: 12px;
       }
 
       .message {
         max-width: 100%;
         padding: 12px;
+        font-size: 13px;
+      }
+
+      .data-table {
         font-size: 12px;
-        overflow-x: auto;
       }
 
-      .message.assistant {
-        font-size: 11px;
-        line-height: 1.4;
-        /* Allow horizontal scroll for tables */
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-      }
-
-      /* Make ASCII tables scrollable */
-      .message.assistant pre,
-      .message.assistant code {
-        white-space: pre;
-        overflow-x: auto;
-        display: block;
-      }
-
-      .greeting {
-        padding: 16px;
-      }
-
-      .greeting h2 {
-        font-size: 16px;
-      }
-
-      .greeting p {
-        font-size: 12px;
+      .data-table th, .data-table td {
+        padding: 8px 10px;
       }
 
       .quick-actions {
         padding: 8px 12px;
-        gap: 6px;
-      }
-
-      .action-label {
-        font-size: 10px;
-        width: 100%;
-        margin-bottom: 4px;
       }
 
       .quick-btn {
         padding: 6px 10px;
         font-size: 11px;
-        border-radius: 16px;
       }
 
       .input-area {
         padding: 12px;
-        gap: 8px;
-      }
-
-      #questionInput {
-        padding: 10px 12px;
-        font-size: 14px;
-      }
-
-      #askBtn {
-        padding: 10px 16px;
-        font-size: 14px;
-      }
-
-      .message table {
-        font-size: 10px;
-        display: block;
-        overflow-x: auto;
-      }
-
-      .message th, .message td {
-        padding: 4px 6px;
-        white-space: nowrap;
       }
     }
 
-    /* Extra small screens */
     @media (max-width: 480px) {
-      header h1 {
-        font-size: 14px;
-      }
-
       .charts-link span {
         display: none;
       }
 
       .charts-link {
         padding: 8px;
-      }
-
-      .message.assistant {
-        font-size: 10px;
-        letter-spacing: -0.3px;
-      }
-
-      .quick-btn {
-        padding: 5px 8px;
-        font-size: 10px;
       }
 
       .action-label {
@@ -465,7 +358,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
         <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
       </svg>
-      Dashboard
+      <span>Dashboard</span>
     </a>
     <a href="charts.html" class="charts-link" title="View Charts">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
@@ -473,7 +366,7 @@
         <path d="M12 20V4"/>
         <path d="M6 20v-6"/>
       </svg>
-      Charts
+      <span>Charts</span>
     </a>
     <span class="status">Live Data</span>
   </header>
@@ -481,7 +374,7 @@
   <div class="chat-container" id="chat">
     <div class="greeting">
       <h2>Welcome!</h2>
-      <p>I'm your KPI assistant. Ask me about pod status, DEL metrics, or project updates. All answers come directly from your Linear data.</p>
+      <p>Ask me about pod status, DEL metrics, or project updates. All answers come directly from your Linear data.</p>
     </div>
   </div>
 
@@ -493,7 +386,6 @@
 
   <div class="quick-actions" id="cycle-actions" style="border-top: none; padding-top: 0;">
     <span class="action-label">Cycles:</span>
-    <!-- Cycle buttons will be dynamically generated -->
   </div>
 
   <div class="quick-actions pod-actions">
@@ -516,10 +408,8 @@
     const input = document.getElementById('questionInput');
     const btn = document.getElementById('askBtn');
 
-    // Detect if user is on mobile device
     function isMobile() {
-      return window.innerWidth <= 768 ||
-        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      return window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     }
 
     function addMessage(text, type) {
@@ -527,7 +417,6 @@
       msg.className = `message ${type}`;
 
       if (type === 'assistant') {
-        // Parse and render structured content
         msg.innerHTML = renderResponse(text);
       } else {
         msg.textContent = text;
@@ -538,98 +427,103 @@
       return msg;
     }
 
-    // Convert response text to HTML with proper tables
     function renderResponse(text) {
-      // Check for JSON table markers
-      if (text.includes('{{TABLE:')) {
-        return renderWithTables(text);
+      // Parse {{TABLE:...:TABLE}} markers
+      if (text.indexOf('{{TABLE:') !== -1) {
+        return parseAndRenderTables(text);
+      }
+      return formatPlainText(text);
+    }
+
+    function parseAndRenderTables(text) {
+      let html = '';
+      let pos = 0;
+
+      while (pos < text.length) {
+        const tableStart = text.indexOf('{{TABLE:', pos);
+
+        if (tableStart === -1) {
+          // No more tables, add remaining text
+          html += formatPlainText(text.substring(pos));
+          break;
+        }
+
+        // Add text before table
+        if (tableStart > pos) {
+          html += formatPlainText(text.substring(pos, tableStart));
+        }
+
+        // Find table end
+        const tableEnd = text.indexOf(':TABLE}}', tableStart);
+        if (tableEnd === -1) {
+          html += formatPlainText(text.substring(pos));
+          break;
+        }
+
+        // Extract and parse JSON
+        const jsonStr = text.substring(tableStart + 8, tableEnd);
+        try {
+          const tableData = JSON.parse(jsonStr);
+          html += renderTable(tableData);
+        } catch (e) {
+          console.error('Table parse error:', e, jsonStr.substring(0, 100));
+          html += '<div class="data-table-wrap"><div class="table-title">Table Error</div></div>';
+        }
+
+        pos = tableEnd + 8;
       }
 
-      // Escape HTML and convert basic formatting
-      let html = escapeHtml(text);
+      return html;
+    }
 
-      // Convert markdown-style headers
+    function formatPlainText(text) {
+      // Escape HTML
+      let html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+      // Headers
       html = html.replace(/^## (.+)$/gm, '<h3 class="response-header">$1</h3>');
       html = html.replace(/^### (.+)$/gm, '<h4 class="response-subheader">$1</h4>');
 
-      // Convert bold
+      // Bold
       html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 
-      // Convert line breaks
+      // Line breaks
       html = html.replace(/\n/g, '<br>');
 
       return html;
     }
 
-    function escapeHtml(text) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
-    }
-
-    // Render response with embedded tables
-    function renderWithTables(text) {
-      let html = '';
-      let remaining = text;
-
-      while (remaining.includes('{{TABLE:')) {
-        const start = remaining.indexOf('{{TABLE:');
-        const end = remaining.indexOf(':TABLE}}');
-
-        if (start === -1 || end === -1) break;
-
-        // Add text before table
-        const before = remaining.substring(0, start);
-        html += escapeHtml(before).replace(/\n/g, '<br>');
-
-        // Parse and render table
-        const tableJson = remaining.substring(start + 8, end);
-        try {
-          const tableData = JSON.parse(tableJson);
-          html += renderTable(tableData);
-        } catch (e) {
-          console.error('Table parse error:', e);
-          html += '[Table Error]';
-        }
-
-        remaining = remaining.substring(end + 8);
-      }
-
-      // Add remaining text
-      html += escapeHtml(remaining).replace(/\n/g, '<br>');
-
-      return html;
-    }
-
-    // Render a data table as HTML
     function renderTable(data) {
-      if (!data || !data.rows || data.rows.length === 0) {
-        return '<p class="empty-table">No data</p>';
-      }
-
       const title = data.title || '';
-      const columns = data.columns || Object.keys(data.rows[0]);
+      const columns = data.columns || [];
+      const rows = data.rows || [];
 
-      let html = '<div class="data-table-container">';
-      if (title) {
-        html += `<div class="table-title">${escapeHtml(title)}</div>`;
+      if (rows.length === 0) {
+        return `<div class="data-table-wrap"><div class="table-title">${esc(title)}</div><p style="padding:12px;color:#666;">No data</p></div>`;
       }
-      html += '<table class="data-table"><thead><tr>';
 
+      let html = '<div class="data-table-wrap">';
+      if (title) {
+        html += `<div class="table-title">${esc(title)}</div>`;
+      }
+
+      html += '<table class="data-table"><thead><tr>';
       for (const col of columns) {
-        const header = col.header || col;
-        html += `<th>${escapeHtml(header)}</th>`;
+        const header = typeof col === 'object' ? col.header : col;
+        html += `<th>${esc(header)}</th>`;
       }
       html += '</tr></thead><tbody>';
 
-      for (const row of data.rows) {
-        const isTotal = row._isTotal;
-        html += `<tr class="${isTotal ? 'total-row' : ''}">`;
+      for (const row of rows) {
+        html += '<tr>';
         for (const col of columns) {
-          const key = col.key || col;
-          const value = row[key] ?? '-';
-          const className = getValueClass(key, value);
-          html += `<td class="${className}">${escapeHtml(String(value))}</td>`;
+          const key = typeof col === 'object' ? col.key : col;
+          let value = row[key];
+          if (value === undefined || value === null) value = '-';
+
+          // Apply status styling
+          const cellClass = getStatusClass(key, String(value));
+          html += `<td class="${cellClass}">${esc(String(value))}</td>`;
         }
         html += '</tr>';
       }
@@ -638,19 +532,18 @@
       return html;
     }
 
-    // Get CSS class based on value
-    function getValueClass(key, value) {
+    function esc(str) {
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function getStatusClass(key, value) {
+      const v = value.toLowerCase();
       if (key === 'status' || key === 'state') {
-        const v = String(value).toLowerCase();
         if (v.includes('done') || v.includes('complete')) return 'status-done';
-        if (v.includes('progress') || v.includes('flight')) return 'status-progress';
-        if (v.includes('backlog') || v.includes('not started')) return 'status-pending';
-      }
-      if (key === 'deliveryPct' || key === 'delivery') {
-        const num = parseInt(value);
-        if (num >= 80) return 'pct-high';
-        if (num >= 40) return 'pct-med';
-        return 'pct-low';
+        if (v.includes('progress')) return 'status-progress';
+        if (v.includes('review')) return 'status-review';
+        if (v.includes('todo')) return 'status-todo';
+        if (v.includes('backlog')) return 'status-backlog';
       }
       return '';
     }
@@ -660,11 +553,8 @@
       askQuestion();
     }
 
-    // Handle quick action button clicks
     document.querySelectorAll('.quick-btn[data-question]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        ask(btn.dataset.question);
-      });
+      btn.addEventListener('click', () => ask(btn.dataset.question));
     });
 
     function handleKeyPress(e) {
@@ -675,16 +565,13 @@
       const question = input.value.trim();
       if (!question) return;
 
-      // Add user message
       addMessage(question, 'user');
       input.value = '';
       btn.disabled = true;
 
-      // Add loading message
       const loadingMsg = addMessage('Fetching data from Linear...', 'assistant loading');
 
       try {
-        // Pass mobile flag for simplified output on small screens
         const res = await fetch('/api/ask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -692,8 +579,6 @@
         });
 
         const data = await res.json();
-
-        // Remove loading message
         loadingMsg.remove();
 
         if (data.success) {
@@ -703,74 +588,43 @@
         }
       } catch (err) {
         loadingMsg.remove();
-        addMessage(`Error: Could not reach the server. Is it running?`, 'assistant');
+        addMessage(`Error: Could not reach the server.`, 'assistant');
       }
 
       btn.disabled = false;
       input.focus();
     }
 
-    // Focus input on load
     input.focus();
 
-    // Dynamic cycle buttons based on current date
+    // Generate cycle buttons
     function getCurrentCycle() {
       const now = new Date();
-      const month = now.getMonth(); // 0-indexed (0=Jan, 1=Feb, 2=Mar)
+      const month = now.getMonth();
       const day = now.getDate();
-
-      // Q1 2026 cycles (Jan-Mar)
-      // C1: Jan 1-15, C2: Jan 16-31
-      // C3: Feb 1-15, C4: Feb 16-28/29
-      // C5: Mar 1-15, C6: Mar 16-31
-
-      if (month === 0) { // January
-        return day <= 15 ? 1 : 2;
-      } else if (month === 1) { // February
-        return day <= 15 ? 3 : 4;
-      } else if (month === 2) { // March
-        return day <= 15 ? 5 : 6;
-      }
-      // Default to C1 if outside Q1
+      if (month === 0) return day <= 15 ? 1 : 2;
+      if (month === 1) return day <= 15 ? 3 : 4;
+      if (month === 2) return day <= 15 ? 5 : 6;
       return 1;
     }
 
     function generateCycleButtons() {
-      const cycleContainer = document.getElementById('cycle-actions');
-      const currentCycle = getCurrentCycle();
-
-      // Show current cycle and all previous cycles (completed ones)
-      // Plus next cycle if not at C6
-      let cyclesToShow = [];
-
-      // Add all cycles from C1 to current+1 (or C6 max)
-      for (let i = 1; i <= Math.min(currentCycle + 1, 6); i++) {
-        cyclesToShow.push(i);
-      }
-
-      // Generate buttons
-      cyclesToShow.forEach(cycle => {
+      const container = document.getElementById('cycle-actions');
+      const current = getCurrentCycle();
+      for (let i = 1; i <= Math.min(current + 1, 6); i++) {
         const btn = document.createElement('button');
         btn.className = 'quick-btn';
-        btn.dataset.question = `Show DELs in cycle C${cycle}`;
-        btn.textContent = `C${cycle} DELs`;
-
-        // Highlight current cycle
-        if (cycle === currentCycle) {
+        btn.dataset.question = `Show DELs in cycle C${i}`;
+        btn.textContent = `C${i} DELs`;
+        if (i === current) {
           btn.style.background = '#1a1a2e';
           btn.style.color = 'white';
-          btn.style.borderColor = '#1a1a2e';
         }
-
-        btn.addEventListener('click', () => {
-          ask(btn.dataset.question);
-        });
-
-        cycleContainer.appendChild(btn);
-      });
+        btn.addEventListener('click', () => ask(btn.dataset.question));
+        container.appendChild(btn);
+      }
     }
 
-    // Generate cycle buttons on page load
     generateCycleButtons();
   </script>
 </body>
