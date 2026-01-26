@@ -1098,10 +1098,15 @@ async function generateMobilePodNarrative(pod, projectCount, stats, projects, po
     const completedDels = cycleDels.filter(d => d.isCompleted);
 
     if (pendingDels.length > 0) {
+      // Clean project name - remove "Q1 2026 : " prefix
+      const cleanProject = (name) => {
+        if (!name) return "-";
+        return name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
+      };
       const rows = pendingDels.map(d => ({
         id: d.identifier,
         title: d.title.length > 30 ? d.title.substring(0, 30) + "..." : d.title,
-        project: d.project ? (d.project.length > 20 ? d.project.substring(0, 20) + "..." : d.project) : "-",
+        project: cleanProject(d.project),
         assignee: d.assignee || "Unassigned",
         state: d.state
       }));
