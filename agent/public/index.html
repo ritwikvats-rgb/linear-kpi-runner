@@ -217,21 +217,100 @@
       font-size: 14px;
     }
 
-    /* Table styling for KPI output */
-    .message table {
-      border-collapse: collapse;
+    /* Dynamic Table Styling */
+    .data-table-container {
       margin: 12px 0;
-      font-size: 12px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #e2e8f0;
     }
 
-    .message th, .message td {
-      border: 1px solid #ddd;
-      padding: 6px 10px;
+    .table-title {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      padding: 10px 14px;
+      font-weight: 600;
+      font-size: 13px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 13px;
+    }
+
+    .data-table th {
+      background: #f8fafc;
+      color: #475569;
+      font-weight: 600;
+      padding: 10px 12px;
       text-align: left;
+      border-bottom: 2px solid #e2e8f0;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
-    .message th {
-      background: #f5f5f5;
+    .data-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #f1f5f9;
+      color: #334155;
+    }
+
+    .data-table tr:hover td {
+      background: #f8fafc;
+    }
+
+    .data-table tr.total-row {
+      background: #f1f5f9;
+      font-weight: 600;
+    }
+
+    .data-table tr.total-row td {
+      border-top: 2px solid #cbd5e1;
+    }
+
+    /* Status colors */
+    .status-done { color: #059669; font-weight: 500; }
+    .status-progress { color: #d97706; font-weight: 500; }
+    .status-pending { color: #6b7280; }
+
+    /* Percentage colors */
+    .pct-high { color: #059669; font-weight: 600; }
+    .pct-med { color: #d97706; font-weight: 600; }
+    .pct-low { color: #dc2626; font-weight: 600; }
+
+    /* Response headers */
+    .response-header {
+      font-size: 15px;
+      font-weight: 600;
+      color: #1e293b;
+      margin: 16px 0 8px 0;
+      padding-bottom: 6px;
+      border-bottom: 2px solid #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    .response-subheader {
+      font-size: 13px;
+      font-weight: 600;
+      color: #475569;
+      margin: 12px 0 6px 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    .empty-table {
+      color: #94a3b8;
+      font-style: italic;
+      padding: 12px;
+    }
+
+    /* Override monospace for assistant messages with tables */
+    .message.assistant {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
     }
 
     /* ============== MOBILE RESPONSIVE ============== */
@@ -446,10 +525,134 @@
     function addMessage(text, type) {
       const msg = document.createElement('div');
       msg.className = `message ${type}`;
-      msg.textContent = text;
+
+      if (type === 'assistant') {
+        // Parse and render structured content
+        msg.innerHTML = renderResponse(text);
+      } else {
+        msg.textContent = text;
+      }
+
       chat.appendChild(msg);
       chat.scrollTop = chat.scrollHeight;
       return msg;
+    }
+
+    // Convert response text to HTML with proper tables
+    function renderResponse(text) {
+      // Check for JSON table markers
+      if (text.includes('{{TABLE:')) {
+        return renderWithTables(text);
+      }
+
+      // Escape HTML and convert basic formatting
+      let html = escapeHtml(text);
+
+      // Convert markdown-style headers
+      html = html.replace(/^## (.+)$/gm, '<h3 class="response-header">$1</h3>');
+      html = html.replace(/^### (.+)$/gm, '<h4 class="response-subheader">$1</h4>');
+
+      // Convert bold
+      html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+      // Convert line breaks
+      html = html.replace(/\n/g, '<br>');
+
+      return html;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Render response with embedded tables
+    function renderWithTables(text) {
+      let html = '';
+      let remaining = text;
+
+      while (remaining.includes('{{TABLE:')) {
+        const start = remaining.indexOf('{{TABLE:');
+        const end = remaining.indexOf(':TABLE}}');
+
+        if (start === -1 || end === -1) break;
+
+        // Add text before table
+        const before = remaining.substring(0, start);
+        html += escapeHtml(before).replace(/\n/g, '<br>');
+
+        // Parse and render table
+        const tableJson = remaining.substring(start + 8, end);
+        try {
+          const tableData = JSON.parse(tableJson);
+          html += renderTable(tableData);
+        } catch (e) {
+          console.error('Table parse error:', e);
+          html += '[Table Error]';
+        }
+
+        remaining = remaining.substring(end + 8);
+      }
+
+      // Add remaining text
+      html += escapeHtml(remaining).replace(/\n/g, '<br>');
+
+      return html;
+    }
+
+    // Render a data table as HTML
+    function renderTable(data) {
+      if (!data || !data.rows || data.rows.length === 0) {
+        return '<p class="empty-table">No data</p>';
+      }
+
+      const title = data.title || '';
+      const columns = data.columns || Object.keys(data.rows[0]);
+
+      let html = '<div class="data-table-container">';
+      if (title) {
+        html += `<div class="table-title">${escapeHtml(title)}</div>`;
+      }
+      html += '<table class="data-table"><thead><tr>';
+
+      for (const col of columns) {
+        const header = col.header || col;
+        html += `<th>${escapeHtml(header)}</th>`;
+      }
+      html += '</tr></thead><tbody>';
+
+      for (const row of data.rows) {
+        const isTotal = row._isTotal;
+        html += `<tr class="${isTotal ? 'total-row' : ''}">`;
+        for (const col of columns) {
+          const key = col.key || col;
+          const value = row[key] ?? '-';
+          const className = getValueClass(key, value);
+          html += `<td class="${className}">${escapeHtml(String(value))}</td>`;
+        }
+        html += '</tr>';
+      }
+
+      html += '</tbody></table></div>';
+      return html;
+    }
+
+    // Get CSS class based on value
+    function getValueClass(key, value) {
+      if (key === 'status' || key === 'state') {
+        const v = String(value).toLowerCase();
+        if (v.includes('done') || v.includes('complete')) return 'status-done';
+        if (v.includes('progress') || v.includes('flight')) return 'status-progress';
+        if (v.includes('backlog') || v.includes('not started')) return 'status-pending';
+      }
+      if (key === 'deliveryPct' || key === 'delivery') {
+        const num = parseInt(value);
+        if (num >= 80) return 'pct-high';
+        if (num >= 40) return 'pct-med';
+        return 'pct-low';
+      }
+      return '';
     }
 
     function ask(question) {

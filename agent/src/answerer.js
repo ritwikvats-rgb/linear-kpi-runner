@@ -1000,8 +1000,16 @@ Rules:
 }
 
 /**
- * Generate MOBILE-FRIENDLY narrative for a pod
- * Uses simple text format instead of ASCII tables
+ * Create a JSON table marker for frontend rendering
+ */
+function jsonTable(title, columns, rows) {
+  const tableData = { title, columns, rows };
+  return `{{TABLE:${JSON.stringify(tableData)}:TABLE}}`;
+}
+
+/**
+ * Generate dynamic narrative for a pod
+ * Returns structured data that frontend renders as HTML tables
  */
 async function generateMobilePodNarrative(pod, projectCount, stats, projects, podDelData, currentCycle, cycleDels, issueStats, healthScore, healthStatus, fetchedAt) {
   let out = "";
@@ -1014,29 +1022,30 @@ async function generateMobilePodNarrative(pod, projectCount, stats, projects, po
     .replace(/^\[Q1 Project 2026\]-?/i, "");
 
   // ============== HEADER ==============
-  out += `${healthStatus.emoji} ${pod}\n`;
-  out += `━━━━━━━━━━━━━━━━━━━━\n`;
-  out += `Score: ${healthScore}% | ${healthStatus.text}\n\n`;
+  out += `## ${healthStatus.emoji} ${pod} - ${healthStatus.text} (${healthScore}%)\n\n`;
 
-  // ============== OVERVIEW ==============
-  out += `📊 OVERVIEW\n`;
-  out += `• Projects: ${projectCount}\n`;
-  out += `• Done: ${stats.done}\n`;
-  out += `• In-Flight: ${stats.in_flight}\n`;
-  out += `• Not Started: ${stats.not_started}\n`;
+  // ============== OVERVIEW TABLE ==============
+  const overviewRows = [
+    { metric: "Total Projects", value: projectCount },
+    { metric: "Done", value: stats.done },
+    { metric: "In-Flight", value: stats.in_flight },
+    { metric: "Not Started", value: stats.not_started },
+  ];
 
   if (podDelData) {
-    out += `\n📦 DELs (${currentCycle})\n`;
-    out += `• Committed: ${podDelData.committed}\n`;
-    out += `• Completed: ${podDelData.completed}\n`;
-    out += `• Delivery: ${podDelData.deliveryPct}\n`;
+    overviewRows.push({ metric: `DELs Committed (${currentCycle})`, value: podDelData.committed });
+    overviewRows.push({ metric: "DELs Completed", value: podDelData.completed });
+    overviewRows.push({ metric: "Delivery Rate", value: podDelData.deliveryPct });
   }
 
-  if (issueStats.blockers > 0 || issueStats.risks > 0) {
-    out += `\n⚠️ ALERTS\n`;
-    if (issueStats.blockers > 0) out += `• Blockers: ${issueStats.blockers}\n`;
-    if (issueStats.risks > 0) out += `• Risks: ${issueStats.risks}\n`;
-  }
+  if (issueStats.blockers > 0) overviewRows.push({ metric: "⚠️ Blockers", value: issueStats.blockers });
+  if (issueStats.risks > 0) overviewRows.push({ metric: "⚠️ Risks", value: issueStats.risks });
+
+  out += jsonTable("📊 Overview", [
+    { key: "metric", header: "Metric" },
+    { key: "value", header: "Value" }
+  ], overviewRows);
+  out += "\n\n";
 
   // ============== PROJECTS ==============
   if (projectCount > 0) {
@@ -1045,27 +1054,41 @@ async function generateMobilePodNarrative(pod, projectCount, stats, projects, po
     const notStarted = projects.filter(p => p.normalizedState === "not_started");
 
     if (inFlight.length > 0) {
-      out += `\n🔄 IN-FLIGHT (${inFlight.length})\n`;
-      inFlight.forEach(p => {
-        out += `• ${cleanName(p.name)}\n`;
-        if (p.lead) out += `  Lead: ${p.lead}\n`;
-      });
+      const rows = inFlight.map(p => ({
+        project: cleanName(p.name),
+        lead: p.lead || "-",
+        status: "In Progress"
+      }));
+      out += jsonTable(`🔄 In-Flight (${inFlight.length})`, [
+        { key: "project", header: "Project" },
+        { key: "lead", header: "Lead" },
+        { key: "status", header: "Status" }
+      ], rows);
+      out += "\n\n";
     }
 
     if (done.length > 0) {
-      out += `\n✅ DONE (${done.length})\n`;
-      done.forEach(p => {
-        out += `• ${cleanName(p.name)}\n`;
-      });
+      const rows = done.map(p => ({
+        project: cleanName(p.name),
+        status: "Done"
+      }));
+      out += jsonTable(`✅ Completed (${done.length})`, [
+        { key: "project", header: "Project" },
+        { key: "status", header: "Status" }
+      ], rows);
+      out += "\n\n";
     }
 
-    if (notStarted.length > 0 && notStarted.length <= 5) {
-      out += `\n⏳ NOT STARTED (${notStarted.length})\n`;
-      notStarted.forEach(p => {
-        out += `• ${cleanName(p.name)}\n`;
-      });
-    } else if (notStarted.length > 5) {
-      out += `\n⏳ NOT STARTED: ${notStarted.length} projects\n`;
+    if (notStarted.length > 0) {
+      const rows = notStarted.map(p => ({
+        project: cleanName(p.name),
+        lead: p.lead || "-"
+      }));
+      out += jsonTable(`⏳ Not Started (${notStarted.length})`, [
+        { key: "project", header: "Project" },
+        { key: "lead", header: "Lead" }
+      ], rows);
+      out += "\n\n";
     }
   }
 
@@ -1075,57 +1098,58 @@ async function generateMobilePodNarrative(pod, projectCount, stats, projects, po
     const completedDels = cycleDels.filter(d => d.isCompleted);
 
     if (pendingDels.length > 0) {
-      out += `\n⚠️ PENDING DELs (${pendingDels.length})\n`;
-      pendingDels.slice(0, 5).forEach(d => {
-        out += `• ${d.identifier}: ${d.title}\n`;
-        out += `  ${d.assignee} | ${d.state}\n`;
-      });
-      if (pendingDels.length > 5) {
-        out += `  ...and ${pendingDels.length - 5} more\n`;
-      }
+      const rows = pendingDels.map(d => ({
+        id: d.identifier,
+        title: d.title.length > 35 ? d.title.substring(0, 35) + "..." : d.title,
+        assignee: d.assignee || "Unassigned",
+        state: d.state
+      }));
+      out += jsonTable(`⚠️ Pending DELs (${pendingDels.length})`, [
+        { key: "id", header: "ID" },
+        { key: "title", header: "Title" },
+        { key: "assignee", header: "Assignee" },
+        { key: "state", header: "State" }
+      ], rows);
+      out += "\n\n";
     }
 
     if (completedDels.length > 0) {
-      out += `\n✅ COMPLETED DELs (${completedDels.length})\n`;
-      completedDels.slice(0, 3).forEach(d => {
-        out += `• ${d.identifier}: ${d.title}\n`;
-      });
-      if (completedDels.length > 3) {
-        out += `  ...and ${completedDels.length - 3} more\n`;
-      }
+      const rows = completedDels.map(d => ({
+        id: d.identifier,
+        title: d.title.length > 45 ? d.title.substring(0, 45) + "..." : d.title,
+        status: "Done"
+      }));
+      out += jsonTable(`✅ Completed DELs (${completedDels.length})`, [
+        { key: "id", header: "ID" },
+        { key: "title", header: "Title" },
+        { key: "status", header: "Status" }
+      ], rows);
+      out += "\n\n";
     }
   }
 
   // ============== COMMENTS & INSIGHTS ==============
   const commentsSummary = await fetchPodCommentsSummary(pod, projects);
   if (commentsSummary && commentsSummary.summary) {
-    out += `\n💬 DISCUSSIONS\n`;
-    out += `${commentsSummary.summary}\n`;
+    out += `### 💬 Recent Discussions\n${commentsSummary.summary}\n\n`;
   }
 
   const insights = await generatePodInsights(pod, stats, podDelData, issueStats, cycleDels, projects);
   if (insights) {
-    out += `\n💡 INSIGHTS\n`;
-    out += `${insights}\n`;
+    out += `### 💡 Insights\n${insights}\n\n`;
   }
 
   // ============== FOOTER ==============
   const hasSlack = commentsSummary && commentsSummary.hasSlackData;
-  const sourceStr = hasSlack ? "Linear+Slack" : "Linear";
-  out += `\n━━━━━━━━━━━━━━━━━━━━\n`;
-  out += `${sourceStr} | ${formatToIST(fetchedAt)}`;
+  const sourceStr = hasSlack ? "Linear + Slack" : "Linear";
+  out += `---\nSource: ${sourceStr} | ${formatToIST(fetchedAt)}`;
 
   return out;
 }
 
 /**
  * Generate comprehensive narrative summary for a single pod
- * Output includes:
- * a) Health score and overview
- * b) Beautiful project tables
- * c) DEL tracking with tables
- * d) LLM-summarized comments
- * e) Smart insights
+ * Returns structured data for frontend HTML rendering
  */
 async function generatePodNarrative(podName, isMobile = false) {
   // Get live pod data
@@ -1168,182 +1192,8 @@ async function generatePodNarrative(podName, isMobile = false) {
   const healthScore = calculateHealthScore(stats, podDelData, issueStats, projects);
   const healthStatus = getHealthStatus(healthScore);
 
-  // ============== MOBILE FORMAT ==============
-  if (isMobile) {
-    return await generateMobilePodNarrative(pod, projectCount, stats, projects, podDelData, currentCycle, cycleDels, issueStats, healthScore, healthStatus, projectsResult.fetchedAt);
-  }
-
-  let out = "";
-
-  // ============== HEADER WITH HEALTH SCORE ==============
-  out += `╔${"═".repeat(58)}╗\n`;
-  out += `║  ${pod.padEnd(40)} ${healthStatus.emoji} ${healthScore}/100  ║\n`;
-  out += `║  ${"─".repeat(54)}  ║\n`;
-  out += `║  Health: ${healthStatus.text.padEnd(45)} ║\n`;
-  out += `╚${"═".repeat(58)}╝\n\n`;
-
-  // ============== OVERVIEW METRICS TABLE ==============
-  const overviewData = [
-    { metric: "Total Projects", value: projectCount },
-    { metric: "Completed", value: stats.done },
-    { metric: "In-Flight", value: stats.in_flight },
-    { metric: "Not Started", value: stats.not_started },
-  ];
-
-  if (podDelData) {
-    overviewData.push({ metric: "─────────────", value: "────" });
-    overviewData.push({ metric: `DEL Committed (${currentCycle})`, value: podDelData.committed });
-    overviewData.push({ metric: `DEL Completed`, value: podDelData.completed });
-    overviewData.push({ metric: `Delivery Rate`, value: podDelData.deliveryPct });
-    if (podDelData.spillover > 0) {
-      overviewData.push({ metric: `Spillover`, value: podDelData.spillover });
-    }
-  }
-
-  if (issueStats.blockers > 0 || issueStats.risks > 0) {
-    overviewData.push({ metric: "─────────────", value: "────" });
-    if (issueStats.blockers > 0) overviewData.push({ metric: "🚨 Blockers", value: issueStats.blockers });
-    if (issueStats.risks > 0) overviewData.push({ metric: "⚠️ Risks", value: issueStats.risks });
-  }
-
-  out += formatTable(overviewData, [
-    { key: "metric", header: "Metric", align: "left", width: 22 },
-    { key: "value", header: "Value", align: "right", width: 10 },
-  ], { title: "📊 Overview" });
-
-  out += "\n";
-
-  // ============== PROJECTS BY STATUS ==============
-  if (projectCount > 0) {
-    const inFlight = projects.filter(p => p.normalizedState === "in_flight");
-    const done = projects.filter(p => p.normalizedState === "done");
-    const notStarted = projects.filter(p => p.normalizedState === "not_started");
-
-    // Clean up project names
-    const cleanName = (name) => name
-      .replace(/^Q1 2026\s*:\s*/i, "")
-      .replace(/^Q1 26\s*-\s*/i, "")
-      .replace(/^\[Q1 2026 Project\]-?/i, "")
-      .replace(/^\[Q1 Project 2026\]-?/i, "");
-
-    if (inFlight.length > 0) {
-      const inFlightData = inFlight.map(p => ({
-        project: cleanName(p.name),
-        lead: p.lead || "-",
-        updated: p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : "-",
-      }));
-
-      out += formatTable(inFlightData, [
-        { key: "project", header: "Project", align: "left", width: 40 },
-        { key: "lead", header: "Lead", align: "left", width: 15 },
-        { key: "updated", header: "Updated", align: "left", width: 12 },
-      ], { title: `🔄 In-Flight (${inFlight.length})` });
-      out += "\n";
-    }
-
-    if (notStarted.length > 0) {
-      const notStartedData = notStarted.map(p => ({
-        project: cleanName(p.name),
-        lead: p.lead || "-",
-      }));
-
-      out += formatTable(notStartedData, [
-        { key: "project", header: "Project", align: "left", width: 50 },
-        { key: "lead", header: "Lead", align: "left", width: 15 },
-      ], { title: `⏳ Not Started (${notStarted.length})` });
-      out += "\n";
-    }
-
-    if (done.length > 0) {
-      const doneData = done.map(p => ({
-        project: cleanName(p.name),
-      }));
-
-      out += formatTable(doneData, [
-        { key: "project", header: "Project", align: "left", width: 55 },
-      ], { title: `✅ Completed (${done.length})` });
-      out += "\n";
-    }
-  }
-
-  // ============== DEL TRACKING TABLE ==============
-  if (cycleDels.length > 0) {
-    const pendingDelsList = cycleDels.filter(d => !d.isCompleted);
-    const completedDelsList = cycleDels.filter(d => d.isCompleted);
-
-    if (pendingDelsList.length > 0) {
-      const pendingData = pendingDelsList.map(d => ({
-        id: d.identifier,
-        title: d.title.substring(0, 35) + (d.title.length > 35 ? "..." : ""),
-        assignee: d.assignee,
-        state: d.state,
-      }));
-
-      out += formatTable(pendingData, [
-        { key: "id", header: "ID", align: "left", width: 10 },
-        { key: "title", header: "Title", align: "left", width: 38 },
-        { key: "assignee", header: "Assignee", align: "left", width: 15 },
-        { key: "state", header: "State", align: "left", width: 12 },
-      ], { title: `⚠️ Pending DELs (${pendingDelsList.length})` });
-      out += "\n";
-    }
-
-    if (completedDelsList.length > 0) {
-      const completedData = completedDelsList.map(d => ({
-        id: d.identifier,
-        title: d.title.substring(0, 50) + (d.title.length > 50 ? "..." : ""),
-      }));
-
-      out += formatTable(completedData, [
-        { key: "id", header: "ID", align: "left", width: 10 },
-        { key: "title", header: "Title", align: "left", width: 55 },
-      ], { title: `✅ Completed DELs (${completedDelsList.length})` });
-      out += "\n";
-    }
-  }
-
-  // ============== COMMENTS SUMMARY (LLM-powered) ==============
-  const commentsSummary = await fetchPodCommentsSummary(pod, projects);
-  if (commentsSummary) {
-    out += `💬 RECENT DISCUSSIONS\n`;
-    out += `${"─".repeat(60)}\n`;
-
-    // Build source description
-    let sourceDesc = "";
-    if (commentsSummary.commentCount > 0 && commentsSummary.slackMessageCount > 0) {
-      sourceDesc = `${commentsSummary.commentCount} Linear comments + ${commentsSummary.slackMessageCount} Slack messages`;
-    } else if (commentsSummary.commentCount > 0) {
-      sourceDesc = `${commentsSummary.commentCount} Linear comments`;
-    } else if (commentsSummary.slackMessageCount > 0) {
-      sourceDesc = `${commentsSummary.slackMessageCount} Slack messages`;
-    }
-
-    out += `Analyzed ${sourceDesc} from ${commentsSummary.projectCount} active projects:\n\n`;
-    if (commentsSummary.summary) {
-      out += `${commentsSummary.summary}\n`;
-    } else {
-      out += `(Summary generation unavailable)\n`;
-    }
-    out += `\n`;
-  }
-
-  // ============== SMART INSIGHTS (LLM-powered) ==============
-  const insights = await generatePodInsights(pod, stats, podDelData, issueStats, cycleDels, projects);
-  if (insights) {
-    out += `💡 INSIGHTS & RECOMMENDATIONS\n`;
-    out += `${"─".repeat(60)}\n`;
-    out += `${insights}\n\n`;
-  }
-
-  // ============== FOOTER ==============
-  out += `${"─".repeat(60)}\n`;
-
-  // Determine source string based on whether Slack data was fetched
-  const hasSlack = commentsSummary && commentsSummary.hasSlackData;
-  const sourceStr = hasSlack ? "Linear + Slack" : "Linear";
-  out += `Source: LIVE from ${sourceStr} | Generated: ${formatToIST(projectsResult.fetchedAt)}`;
-
-  return out;
+  // Use the same dynamic table format for both mobile and desktop
+  return await generateMobilePodNarrative(pod, projectCount, stats, projects, podDelData, currentCycle, cycleDels, issueStats, healthScore, healthStatus, projectsResult.fetchedAt);
 }
 
 // ============== MAIN ANSWER FUNCTION ==============
