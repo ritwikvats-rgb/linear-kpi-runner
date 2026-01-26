@@ -1387,13 +1387,13 @@ async function answer(question, snapshot, options = {}) {
     case "pending_dels": {
       // Fetch and display pending (committed but not completed) DELs
       const result = await fetchPendingDELs(cmd.podName);
-      return formatPendingDELs(result);
+      return formatPendingDELs(result, isMobile);
     }
 
     case "dels_by_cycle": {
       // Fetch and display DELs committed to a specific cycle
       const result = await fetchDELsByCycle(cmd.cycle, cmd.podName);
-      return formatDELsByCycle(result);
+      return formatDELsByCycle(result, isMobile);
     }
 
     case "pod_narrative": {

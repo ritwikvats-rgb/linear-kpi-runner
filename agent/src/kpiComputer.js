@@ -713,9 +713,11 @@ async function fetchDELsByCycle(cycle, podNameFilter = null) {
 }
 
 /**
- * Format DELs by cycle for display with beautiful box-style tables
+ * Format DELs by cycle for display - supports mobile-friendly format
+ * @param {object} result - The result from fetchDELsByCycle
+ * @param {boolean} isMobile - If true, use simple list format instead of tables
  */
-function formatDELsByCycle(result) {
+function formatDELsByCycle(result, isMobile = false) {
   if (!result.success) {
     let msg = `Error: ${result.error}\n${result.message}`;
     if (result.availablePods) {
@@ -731,8 +733,48 @@ function formatDELsByCycle(result) {
     return `No DELs committed to cycle ${cycle}${podMsg}.\n\nSnapshot: ${fetchedAt}`;
   }
 
-  let out = "";
   const podMsg = podFilter ? `${podFilter}` : "All Pods";
+
+  // ============== MOBILE FORMAT ==============
+  if (isMobile) {
+    let out = "";
+    out += `📦 DELs: ${cycle} (${podMsg})\n`;
+    out += `━━━━━━━━━━━━━━━━━━━━\n`;
+    out += `Committed: ${totalCommitted}\n`;
+    out += `Completed: ${totalCompleted}\n`;
+    out += `Pending: ${totalPending}\n`;
+    out += `Delivery: ${deliveryPct}%\n\n`;
+
+    // Group by pod
+    const byPod = {};
+    for (const del of dels) {
+      if (!byPod[del.pod]) byPod[del.pod] = [];
+      byPod[del.pod].push(del);
+    }
+
+    for (const [podName, podDels] of Object.entries(byPod)) {
+      const completed = podDels.filter(d => d.isCompleted).length;
+      const pending = podDels.length - completed;
+
+      out += `\n📋 ${podName}\n`;
+      out += `${completed} done, ${pending} pending\n`;
+      out += `────────────────────\n`;
+
+      for (const del of podDels) {
+        const status = del.isCompleted ? "✅" : "⏳";
+        out += `${status} ${del.identifier}\n`;
+        out += `   ${truncate(del.title, 30)}\n`;
+        out += `   ${del.assignee || "Unassigned"} | ${del.state}\n`;
+      }
+    }
+
+    out += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+    out += `${fetchedAt}`;
+    return out;
+  }
+
+  // ============== DESKTOP FORMAT (box tables) ==============
+  let out = "";
 
   // Summary box
   out += formatSummaryBox(`DELs in Cycle ${cycle} - ${podMsg}`, [
@@ -908,7 +950,12 @@ async function fetchPendingDELs(podNameFilter = null) {
 /**
  * Format pending DELs for display with beautified box tables
  */
-function formatPendingDELs(result) {
+/**
+ * Format pending DELs for display - supports mobile-friendly format
+ * @param {object} result - The result from fetchPendingDELs
+ * @param {boolean} isMobile - If true, use simple list format instead of tables
+ */
+function formatPendingDELs(result, isMobile = false) {
   if (!result.success) {
     let msg = `Error: ${result.error}\n${result.message}`;
     if (result.availablePods) {
@@ -924,10 +971,7 @@ function formatPendingDELs(result) {
     return `No pending DELs found${podMsg}. All committed DELs are completed!\n\nSnapshot: ${fetchedAt}`;
   }
 
-  let out = "";
   const podMsg = podFilter ? `${podFilter}` : "All Pods";
-  out += `## Pending DELs - ${podMsg}\n\n`;
-  out += `Total Pending: ${totalPending}\n\n`;
 
   // Group by pod
   const byPod = {};
@@ -935,6 +979,35 @@ function formatPendingDELs(result) {
     if (!byPod[del.pod]) byPod[del.pod] = [];
     byPod[del.pod].push(del);
   }
+
+  // ============== MOBILE FORMAT ==============
+  if (isMobile) {
+    let out = "";
+    out += `⏳ Pending DELs (${podMsg})\n`;
+    out += `━━━━━━━━━━━━━━━━━━━━\n`;
+    out += `Total: ${totalPending}\n\n`;
+
+    for (const [podName, dels] of Object.entries(byPod)) {
+      out += `📋 ${podName} (${dels.length})\n`;
+      out += `────────────────────\n`;
+
+      for (const del of dels) {
+        out += `• ${del.identifier}\n`;
+        out += `  ${truncate(del.title, 28)}\n`;
+        out += `  ${del.assignee} | ${del.state}\n`;
+      }
+      out += "\n";
+    }
+
+    out += `━━━━━━━━━━━━━━━━━━━━\n`;
+    out += `${fetchedAt}`;
+    return out;
+  }
+
+  // ============== DESKTOP FORMAT (box tables) ==============
+  let out = "";
+  out += `## Pending DELs - ${podMsg}\n\n`;
+  out += `Total Pending: ${totalPending}\n\n`;
 
   // Beautified box tables for each pod
   for (const [podName, dels] of Object.entries(byPod)) {
