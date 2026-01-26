@@ -122,15 +122,32 @@ async function fetchPodFeatureReadiness(projects) {
     })
   );
 
+  // Tech debt project name patterns
+  const isTechDebt = (name) => {
+    const lower = name.toLowerCase();
+    return lower.includes("tech debt") ||
+           lower.includes("refactor") ||
+           lower.includes("optimization") ||
+           lower.includes("sonar") ||
+           lower.includes("eslint") ||
+           lower.includes("flaky test") ||
+           lower.includes("build pipeline") ||
+           lower.includes("ci/cd") ||
+           lower.includes("circle ci");
+  };
+
   for (const { project, readiness: projReadiness } of results) {
     if (!projReadiness || projReadiness.features.length === 0) continue;
 
+    const techDebt = isTechDebt(project.name);
+    const cleanName = project.name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
+
     for (const feature of projReadiness.features) {
       const featureData = {
-        project: project.name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, ""),
-        feature: feature.title,
-        prd: feature.phases.PRD?.status || "na",
-        design: feature.phases.Design?.status || "na",
+        project: cleanName + (techDebt ? " (Tech Debt)" : ""),
+        feature: feature.title, // Full name, no truncation
+        prd: techDebt ? "nr" : (feature.phases.PRD?.status || "na"),
+        design: techDebt ? "nr" : (feature.phases.Design?.status || "na"),
         beDev: feature.phases["BE Dev"]?.status || "na",
         feDev: feature.phases["FE Dev"]?.status || "na",
         pat: feature.phases.PAT?.status || "na",
@@ -1204,11 +1221,12 @@ async function generateMobilePodNarrative(pod, projectCount, stats, projects, po
         if (s === "done") return "✅";
         if (s === "in_progress") return "🔄";
         if (s === "not_started") return "⏳";
+        if (s === "nr") return "N/R";
         return "—";
       };
 
       const rows = readiness.features.slice(0, 15).map(f => ({
-        feature: f.feature.length > 25 ? f.feature.substring(0, 25) + "..." : f.feature,
+        feature: f.feature, // Full name
         prd: statusEmoji(f.prd),
         design: statusEmoji(f.design),
         be: statusEmoji(f.beDev),
@@ -1226,7 +1244,7 @@ async function generateMobilePodNarrative(pod, projectCount, stats, projects, po
         { key: "pat", header: "PAT" },
         { key: "qa", header: "QA" }
       ], rows);
-      out += "\n\n";
+      out += "\n**Legend:** ✅ Done | 🔄 In Progress | ⏳ Not Started | N/R Not Required | — N/A\n\n";
     }
   } catch (e) {
     console.error("Feature readiness fetch error:", e.message);
@@ -1620,24 +1638,36 @@ async function answer(question, snapshot, options = {}) {
         if (linear && proj.id) {
           const readiness = await linear.getFeatureReadiness(proj.id);
           if (readiness && readiness.features.length > 0) {
+            // Check if this is a tech debt project
+            const isTechDebt = (name) => {
+              const lower = name.toLowerCase();
+              return lower.includes("tech debt") || lower.includes("refactor") ||
+                     lower.includes("optimization") || lower.includes("sonar") ||
+                     lower.includes("eslint") || lower.includes("flaky test") ||
+                     lower.includes("build pipeline") || lower.includes("circle ci");
+            };
+            const techDebt = isTechDebt(proj.name);
+
             const statusEmoji = (s) => {
               if (s === "done") return "✅";
               if (s === "in_progress") return "🔄";
               if (s === "not_started") return "⏳";
+              if (s === "nr") return "N/R";
               return "—";
             };
 
             const rows = readiness.features.map(f => ({
-              feature: f.title.length > 30 ? f.title.substring(0, 30) + "..." : f.title,
-              prd: statusEmoji(f.phases.PRD?.status || "na"),
-              design: statusEmoji(f.phases.Design?.status || "na"),
+              feature: f.title, // Full name
+              prd: techDebt ? "N/R" : statusEmoji(f.phases.PRD?.status || "na"),
+              design: techDebt ? "N/R" : statusEmoji(f.phases.Design?.status || "na"),
               be: statusEmoji(f.phases["BE Dev"]?.status || "na"),
               fe: statusEmoji(f.phases["FE Dev"]?.status || "na"),
               pat: statusEmoji(f.phases.PAT?.status || "na"),
               qa: statusEmoji(f.phases.QA?.status || "na")
             }));
 
-            output += jsonTable("📋 Feature Phases", [
+            const tableTitle = techDebt ? "📋 Feature Phases (Tech Debt)" : "📋 Feature Phases";
+            output += jsonTable(tableTitle, [
               { key: "feature", header: "Feature" },
               { key: "prd", header: "PRD" },
               { key: "design", header: "Design" },
@@ -1646,7 +1676,7 @@ async function answer(question, snapshot, options = {}) {
               { key: "pat", header: "PAT" },
               { key: "qa", header: "QA" }
             ], rows);
-            output += "\n\n";
+            output += "**Legend:** ✅ Done | 🔄 In Progress | ⏳ Not Started | N/R Not Required | — N/A\n\n";
           }
         }
       } catch (e) {
