@@ -1086,6 +1086,16 @@ function jsonTable(title, columns, rows) {
 /**
  * Generate dynamic narrative for a pod
  * Returns structured data that frontend renders as HTML tables
+ *
+ * Section order:
+ * 1. Overview
+ * 2. Feature Readiness (all features and tech debts)
+ * 3. In-Flight Features
+ * 4. Not Started Features
+ * 5. Pending DELs
+ * 6. Completed (projects + DELs)
+ * 7. Recent Discussions
+ * 8. Insights
  */
 async function generateMobilePodNarrative(pod, projectCount, stats, projects, podDelData, currentCycle, cycleDels, issueStats, healthScore, healthStatus, fetchedAt) {
   let out = "";
@@ -1097,10 +1107,16 @@ async function generateMobilePodNarrative(pod, projectCount, stats, projects, po
     .replace(/^\[Q1 2026 Project\]-?/i, "")
     .replace(/^\[Q1 Project 2026\]-?/i, "");
 
-  // ============== HEADER ==============
+  // Clean project name - remove "Q1 2026 : " prefix
+  const cleanProject = (name) => {
+    if (!name) return "-";
+    return name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
+  };
+
+  // ============== 1. HEADER ==============
   out += `## ${healthStatus.emoji} ${pod} - ${healthStatus.text} (${healthScore}%)\n\n`;
 
-  // ============== OVERVIEW TABLE ==============
+  // ============== 2. OVERVIEW TABLE ==============
   const overviewRows = [
     { metric: "Total Projects", value: projectCount },
     { metric: "Done", value: stats.done },
@@ -1123,98 +1139,8 @@ async function generateMobilePodNarrative(pod, projectCount, stats, projects, po
   ], overviewRows);
   out += "\n\n";
 
-  // ============== PROJECTS ==============
-  if (projectCount > 0) {
-    const inFlight = projects.filter(p => p.normalizedState === "in_flight");
-    const done = projects.filter(p => p.normalizedState === "done");
-    const notStarted = projects.filter(p => p.normalizedState === "not_started");
-
-    if (inFlight.length > 0) {
-      const rows = inFlight.map(p => ({
-        project: cleanName(p.name),
-        lead: p.lead || "-",
-        status: "In Progress"
-      }));
-      out += jsonTable(`🔄 In-Flight (${inFlight.length})`, [
-        { key: "project", header: "Project" },
-        { key: "lead", header: "Lead" },
-        { key: "status", header: "Status" }
-      ], rows);
-      out += "\n\n";
-    }
-
-    if (done.length > 0) {
-      const rows = done.map(p => ({
-        project: cleanName(p.name),
-        status: "Done"
-      }));
-      out += jsonTable(`✅ Completed (${done.length})`, [
-        { key: "project", header: "Project" },
-        { key: "status", header: "Status" }
-      ], rows);
-      out += "\n\n";
-    }
-
-    if (notStarted.length > 0) {
-      const rows = notStarted.map(p => ({
-        project: cleanName(p.name),
-        lead: p.lead || "-"
-      }));
-      out += jsonTable(`⏳ Not Started (${notStarted.length})`, [
-        { key: "project", header: "Project" },
-        { key: "lead", header: "Lead" }
-      ], rows);
-      out += "\n\n";
-    }
-  }
-
-  // ============== DEL TRACKING ==============
-  // Clean project name - remove "Q1 2026 : " prefix
-  const cleanProject = (name) => {
-    if (!name) return "-";
-    return name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
-  };
-
-  if (cycleDels.length > 0) {
-    const pendingDels = cycleDels.filter(d => !d.isCompleted);
-    const completedDels = cycleDels.filter(d => d.isCompleted);
-
-    if (pendingDels.length > 0) {
-      const rows = pendingDels.map(d => ({
-        id: d.identifier,
-        title: d.title.length > 30 ? d.title.substring(0, 30) + "..." : d.title,
-        project: cleanProject(d.project),
-        assignee: d.assignee || "Unassigned",
-        state: d.state
-      }));
-      out += jsonTable(`⚠️ Pending DELs (${pendingDels.length})`, [
-        { key: "id", header: "ID" },
-        { key: "title", header: "Title" },
-        { key: "project", header: "Project" },
-        { key: "assignee", header: "Assignee" },
-        { key: "state", header: "State" }
-      ], rows);
-      out += "\n\n";
-    }
-
-    if (completedDels.length > 0) {
-      const rows = completedDels.map(d => ({
-        id: d.identifier,
-        title: d.title.length > 35 ? d.title.substring(0, 35) + "..." : d.title,
-        project: cleanProject(d.project),
-        status: "Done"
-      }));
-      out += jsonTable(`✅ Completed DELs (${completedDels.length})`, [
-        { key: "id", header: "ID" },
-        { key: "title", header: "Title" },
-        { key: "project", header: "Project" },
-        { key: "status", header: "Status" }
-      ], rows);
-      out += "\n\n";
-    }
-  }
-
-  // ============== FEATURE READINESS (PRD, Design, Dev) ==============
+  // ============== 3. FEATURE READINESS (PRD, Design, Dev) ==============
+  // Moved up right after Overview per user request
   try {
     const readiness = await fetchPodFeatureReadiness(projects);
     if (readiness && readiness.features.length > 0) {
@@ -1228,7 +1154,7 @@ async function generateMobilePodNarrative(pod, projectCount, stats, projects, po
       };
 
       const rows = readiness.features.slice(0, 15).map(f => ({
-        feature: f.feature, // Full name
+        feature: f.feature, // Full name includes (Tech Debt) label
         prd: statusEmoji(f.prd),
         design: statusEmoji(f.design),
         be: statusEmoji(f.beDev),
@@ -1252,12 +1178,113 @@ async function generateMobilePodNarrative(pod, projectCount, stats, projects, po
     console.error("Feature readiness fetch error:", e.message);
   }
 
-  // ============== COMMENTS & INSIGHTS ==============
+  // ============== 4. IN-FLIGHT FEATURES ==============
+  if (projectCount > 0) {
+    const inFlight = projects.filter(p => p.normalizedState === "in_flight");
+    const done = projects.filter(p => p.normalizedState === "done");
+    const notStarted = projects.filter(p => p.normalizedState === "not_started");
+
+    if (inFlight.length > 0) {
+      const rows = inFlight.map(p => ({
+        project: cleanName(p.name),
+        lead: p.lead || "-",
+        status: "In Progress"
+      }));
+      out += jsonTable(`🔄 In-Flight Features (${inFlight.length})`, [
+        { key: "project", header: "Project" },
+        { key: "lead", header: "Lead" },
+        { key: "status", header: "Status" }
+      ], rows);
+      out += "\n\n";
+    }
+
+    // ============== 5. NOT STARTED FEATURES ==============
+    if (notStarted.length > 0) {
+      const rows = notStarted.map(p => ({
+        project: cleanName(p.name),
+        lead: p.lead || "-"
+      }));
+      out += jsonTable(`⏳ Not Started (${notStarted.length})`, [
+        { key: "project", header: "Project" },
+        { key: "lead", header: "Lead" }
+      ], rows);
+      out += "\n\n";
+    }
+
+    // ============== 6. PENDING DELs ==============
+    if (cycleDels.length > 0) {
+      const pendingDels = cycleDels.filter(d => !d.isCompleted);
+      const completedDels = cycleDels.filter(d => d.isCompleted);
+
+      if (pendingDels.length > 0) {
+        const rows = pendingDels.map(d => ({
+          id: d.identifier,
+          title: d.title.length > 30 ? d.title.substring(0, 30) + "..." : d.title,
+          project: cleanProject(d.project),
+          assignee: d.assignee || "Unassigned",
+          state: d.state
+        }));
+        out += jsonTable(`⚠️ Pending DELs (${pendingDels.length})`, [
+          { key: "id", header: "ID" },
+          { key: "title", header: "Title" },
+          { key: "project", header: "Project" },
+          { key: "assignee", header: "Assignee" },
+          { key: "state", header: "State" }
+        ], rows);
+        out += "\n\n";
+      }
+
+      // ============== 7. COMPLETED (Projects + DELs) ==============
+      if (done.length > 0) {
+        const rows = done.map(p => ({
+          project: cleanName(p.name),
+          status: "Done"
+        }));
+        out += jsonTable(`✅ Completed Projects (${done.length})`, [
+          { key: "project", header: "Project" },
+          { key: "status", header: "Status" }
+        ], rows);
+        out += "\n\n";
+      }
+
+      if (completedDels.length > 0) {
+        const rows = completedDels.map(d => ({
+          id: d.identifier,
+          title: d.title.length > 35 ? d.title.substring(0, 35) + "..." : d.title,
+          project: cleanProject(d.project),
+          status: "Done"
+        }));
+        out += jsonTable(`✅ Completed DELs (${completedDels.length})`, [
+          { key: "id", header: "ID" },
+          { key: "title", header: "Title" },
+          { key: "project", header: "Project" },
+          { key: "status", header: "Status" }
+        ], rows);
+        out += "\n\n";
+      }
+    } else {
+      // No DELs - just show completed projects if any
+      if (done.length > 0) {
+        const rows = done.map(p => ({
+          project: cleanName(p.name),
+          status: "Done"
+        }));
+        out += jsonTable(`✅ Completed Projects (${done.length})`, [
+          { key: "project", header: "Project" },
+          { key: "status", header: "Status" }
+        ], rows);
+        out += "\n\n";
+      }
+    }
+  }
+
+  // ============== 8. RECENT DISCUSSIONS ==============
   const commentsSummary = await fetchPodCommentsSummary(pod, projects);
   if (commentsSummary && commentsSummary.summary) {
     out += `### 💬 Recent Discussions\n${commentsSummary.summary}\n\n`;
   }
 
+  // ============== 9. INSIGHTS ==============
   const insights = await generatePodInsights(pod, stats, podDelData, issueStats, cycleDels, projects);
   if (insights) {
     out += `### 💡 Insights\n${insights}\n\n`;
