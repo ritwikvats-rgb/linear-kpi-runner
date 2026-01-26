@@ -98,6 +98,7 @@ function getProjectAnalyzer() {
 
 /**
  * Fetch feature readiness (PRD, Design, Dev status) for projects in a pod
+ * Includes ALL projects - both in-flight and done - for complete stakeholder overview
  */
 async function fetchPodFeatureReadiness(projects) {
   const linear = getLinearClientForSlack();
@@ -107,20 +108,6 @@ async function fetchPodFeatureReadiness(projects) {
     summary: { prd: { done: 0, in_progress: 0, not_started: 0 }, design: { done: 0, in_progress: 0, not_started: 0 } },
     features: []
   };
-
-  // Fetch readiness for each project (in parallel with limit)
-  const projectsToCheck = projects.filter(p => p.normalizedState !== "done").slice(0, 20); // Limit for performance
-
-  const results = await Promise.all(
-    projectsToCheck.map(async (project) => {
-      try {
-        const projectReadiness = await linear.getFeatureReadiness(project.id);
-        return { project, readiness: projectReadiness };
-      } catch (e) {
-        return { project, readiness: null };
-      }
-    })
-  );
 
   // Tech debt project name patterns
   const isTechDebt = (name) => {
@@ -136,36 +123,75 @@ async function fetchPodFeatureReadiness(projects) {
            lower.includes("circle ci");
   };
 
+  // Clean project name helper
+  const cleanName = (name) => name
+    .replace(/^Q1 2026\s*:\s*/i, "")
+    .replace(/^Q1 26\s*-\s*/i, "")
+    .replace(/^\[Q1 2026 Project\]-?/i, "")
+    .replace(/^\[Q1 Project 2026\]-?/i, "");
+
+  // Include ALL projects (no filter) - stakeholders need complete view
+  const projectsToCheck = projects.slice(0, 30); // Increased limit
+
+  const results = await Promise.all(
+    projectsToCheck.map(async (project) => {
+      try {
+        const projectReadiness = await linear.getFeatureReadiness(project.id);
+        return { project, readiness: projectReadiness };
+      } catch (e) {
+        return { project, readiness: null };
+      }
+    })
+  );
+
   for (const { project, readiness: projReadiness } of results) {
-    if (!projReadiness || projReadiness.features.length === 0) continue;
-
     const techDebt = isTechDebt(project.name);
-    const cleanName = project.name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
+    const projectCleanName = cleanName(project.name);
+    const projectState = project.normalizedState;
 
-    for (const feature of projReadiness.features) {
-      // Check if this specific feature is a tech debt (by feature title)
-      const featureTechDebt = techDebt || isTechDebt(feature.title);
+    // If project has feature readiness data, use it
+    if (projReadiness && projReadiness.features.length > 0) {
+      for (const feature of projReadiness.features) {
+        // Check if this specific feature is a tech debt (by feature title)
+        const featureTechDebt = techDebt || isTechDebt(feature.title);
+        const featureData = {
+          project: projectCleanName + (techDebt ? " (Tech Debt)" : ""),
+          feature: feature.title + (featureTechDebt && !techDebt ? " (Tech Debt)" : ""),
+          prd: featureTechDebt ? "nr" : (feature.phases.PRD?.status || "na"),
+          design: featureTechDebt ? "nr" : (feature.phases.Design?.status || "na"),
+          beDev: feature.phases["BE Dev"]?.status || "na",
+          feDev: feature.phases["FE Dev"]?.status || "na",
+          pat: feature.phases.PAT?.status || "na",
+          qa: feature.phases.QA?.status || "na",
+          projectState: projectState
+        };
+
+        readiness.features.push(featureData);
+
+        // Update summary counts
+        if (featureData.prd === "done") readiness.summary.prd.done++;
+        else if (featureData.prd === "in_progress") readiness.summary.prd.in_progress++;
+        else if (featureData.prd !== "na" && featureData.prd !== "nr") readiness.summary.prd.not_started++;
+
+        if (featureData.design === "done") readiness.summary.design.done++;
+        else if (featureData.design === "in_progress") readiness.summary.design.in_progress++;
+        else if (featureData.design !== "na" && featureData.design !== "nr") readiness.summary.design.not_started++;
+      }
+    } else {
+      // Project has no feature phase data - add as a single row so it still appears
+      // This ensures ALL projects show up in the Feature Readiness table
       const featureData = {
-        project: cleanName + (techDebt ? " (Tech Debt)" : ""),
-        feature: feature.title + (featureTechDebt ? " (Tech Debt)" : ""),
-        prd: featureTechDebt ? "nr" : (feature.phases.PRD?.status || "na"),
-        design: featureTechDebt ? "nr" : (feature.phases.Design?.status || "na"),
-        beDev: feature.phases["BE Dev"]?.status || "na",
-        feDev: feature.phases["FE Dev"]?.status || "na",
-        pat: feature.phases.PAT?.status || "na",
-        qa: feature.phases.QA?.status || "na"
+        project: projectCleanName + (techDebt ? " (Tech Debt)" : ""),
+        feature: "(No sub-features defined)",
+        prd: techDebt ? "nr" : "na",
+        design: techDebt ? "nr" : "na",
+        beDev: "na",
+        feDev: "na",
+        pat: "na",
+        qa: "na",
+        projectState: projectState
       };
-
       readiness.features.push(featureData);
-
-      // Update summary counts
-      if (featureData.prd === "done") readiness.summary.prd.done++;
-      else if (featureData.prd === "in_progress") readiness.summary.prd.in_progress++;
-      else if (featureData.prd !== "na") readiness.summary.prd.not_started++;
-
-      if (featureData.design === "done") readiness.summary.design.done++;
-      else if (featureData.design === "in_progress") readiness.summary.design.in_progress++;
-      else if (featureData.design !== "na") readiness.summary.design.not_started++;
     }
   }
 
@@ -1140,7 +1166,7 @@ async function generateMobilePodNarrative(pod, projectCount, stats, projects, po
   out += "\n\n";
 
   // ============== 3. FEATURE READINESS (PRD, Design, Dev) ==============
-  // Moved up right after Overview per user request
+  // Moved up right after Overview per user request - shows ALL features for stakeholder visibility
   try {
     const readiness = await fetchPodFeatureReadiness(projects);
     if (readiness && readiness.features.length > 0) {
@@ -1153,7 +1179,9 @@ async function generateMobilePodNarrative(pod, projectCount, stats, projects, po
         return "—";
       };
 
-      const rows = readiness.features.slice(0, 15).map(f => ({
+      // Show ALL features (increased from 15 to 50 for complete stakeholder overview)
+      const rows = readiness.features.slice(0, 50).map(f => ({
+        project: f.project, // Include project name for context
         feature: f.feature, // Full name includes (Tech Debt) label
         prd: statusEmoji(f.prd),
         design: statusEmoji(f.design),
@@ -1164,6 +1192,7 @@ async function generateMobilePodNarrative(pod, projectCount, stats, projects, po
       }));
 
       out += jsonTable("📋 Feature Readiness", [
+        { key: "project", header: "Project" },
         { key: "feature", header: "Feature" },
         { key: "prd", header: "PRD" },
         { key: "design", header: "Design" },
