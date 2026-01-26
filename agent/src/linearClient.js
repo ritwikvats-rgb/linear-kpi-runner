@@ -206,6 +206,80 @@ class LinearClient {
     return data.issue?.comments?.nodes || [];
   }
 
+  // Get project issues with sub-issues (for PRD, Design, BE Dev, FE Dev, PAT, QA tracking)
+  async getProjectIssuesWithChildren(projectId) {
+    const query = `
+      query ProjectIssuesWithChildren($projectId: ID!, $first: Int!) {
+        issues(first: $first, filter: { project: { id: { eq: $projectId } } }) {
+          nodes {
+            id
+            identifier
+            title
+            state { name type }
+            children {
+              nodes {
+                id
+                identifier
+                title
+                state { name type }
+              }
+            }
+          }
+        }
+      }
+    `;
+    const data = await this.gql(query, { projectId, first: 100 });
+    return data.issues.nodes || [];
+  }
+
+  // Get feature readiness (PRD, Design, Dev status) for all issues in a project
+  async getFeatureReadiness(projectId) {
+    const issues = await this.getProjectIssuesWithChildren(projectId);
+
+    const readiness = {
+      total: 0,
+      features: []
+    };
+
+    for (const issue of issues) {
+      // Skip if no children (not a feature with phases)
+      if (!issue.children?.nodes?.length) continue;
+
+      const children = issue.children.nodes;
+      const feature = {
+        id: issue.identifier,
+        title: issue.title,
+        state: issue.state?.name || "Unknown",
+        phases: {}
+      };
+
+      // Look for specific phase sub-issues
+      const phaseNames = ["PRD", "Design", "BE Dev", "FE Dev", "PAT", "QA"];
+      for (const child of children) {
+        const titleLower = child.title.toLowerCase();
+        for (const phase of phaseNames) {
+          if (titleLower === phase.toLowerCase() || titleLower.startsWith(phase.toLowerCase())) {
+            const stateType = child.state?.type || "unstarted";
+            const isDone = stateType === "completed" || stateType === "canceled";
+            const isInProgress = stateType === "started";
+            feature.phases[phase] = {
+              status: isDone ? "done" : isInProgress ? "in_progress" : "not_started",
+              state: child.state?.name || "Unknown"
+            };
+          }
+        }
+      }
+
+      // Only add if has at least one tracked phase
+      if (Object.keys(feature.phases).length > 0) {
+        readiness.features.push(feature);
+        readiness.total++;
+      }
+    }
+
+    return readiness;
+  }
+
 }
 
 module.exports = { LinearClient };

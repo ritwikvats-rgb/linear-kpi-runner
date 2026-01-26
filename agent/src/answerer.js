@@ -96,6 +96,63 @@ function getProjectAnalyzer() {
   return _projectAnalyzer;
 }
 
+/**
+ * Fetch feature readiness (PRD, Design, Dev status) for projects in a pod
+ */
+async function fetchPodFeatureReadiness(projects) {
+  const linear = getLinearClientForSlack();
+  if (!linear) return null;
+
+  const readiness = {
+    summary: { prd: { done: 0, in_progress: 0, not_started: 0 }, design: { done: 0, in_progress: 0, not_started: 0 } },
+    features: []
+  };
+
+  // Fetch readiness for each project (in parallel with limit)
+  const projectsToCheck = projects.filter(p => p.normalizedState !== "done").slice(0, 20); // Limit for performance
+
+  const results = await Promise.all(
+    projectsToCheck.map(async (project) => {
+      try {
+        const projectReadiness = await linear.getFeatureReadiness(project.id);
+        return { project, readiness: projectReadiness };
+      } catch (e) {
+        return { project, readiness: null };
+      }
+    })
+  );
+
+  for (const { project, readiness: projReadiness } of results) {
+    if (!projReadiness || projReadiness.features.length === 0) continue;
+
+    for (const feature of projReadiness.features) {
+      const featureData = {
+        project: project.name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, ""),
+        feature: feature.title,
+        prd: feature.phases.PRD?.status || "na",
+        design: feature.phases.Design?.status || "na",
+        beDev: feature.phases["BE Dev"]?.status || "na",
+        feDev: feature.phases["FE Dev"]?.status || "na",
+        pat: feature.phases.PAT?.status || "na",
+        qa: feature.phases.QA?.status || "na"
+      };
+
+      readiness.features.push(featureData);
+
+      // Update summary counts
+      if (featureData.prd === "done") readiness.summary.prd.done++;
+      else if (featureData.prd === "in_progress") readiness.summary.prd.in_progress++;
+      else if (featureData.prd !== "na") readiness.summary.prd.not_started++;
+
+      if (featureData.design === "done") readiness.summary.design.done++;
+      else if (featureData.design === "in_progress") readiness.summary.design.in_progress++;
+      else if (featureData.design !== "na") readiness.summary.design.not_started++;
+    }
+  }
+
+  return readiness;
+}
+
 // ============== SNAPSHOT-BASED FUNCTIONS (existing) ==============
 
 function findPod(snapshot, name) {
@@ -1136,6 +1193,43 @@ async function generateMobilePodNarrative(pod, projectCount, stats, projects, po
       ], rows);
       out += "\n\n";
     }
+  }
+
+  // ============== FEATURE READINESS (PRD, Design, Dev) ==============
+  try {
+    const readiness = await fetchPodFeatureReadiness(projects);
+    if (readiness && readiness.features.length > 0) {
+      // Status emoji mapper
+      const statusEmoji = (s) => {
+        if (s === "done") return "✅";
+        if (s === "in_progress") return "🔄";
+        if (s === "not_started") return "⏳";
+        return "—";
+      };
+
+      const rows = readiness.features.slice(0, 15).map(f => ({
+        feature: f.feature.length > 25 ? f.feature.substring(0, 25) + "..." : f.feature,
+        prd: statusEmoji(f.prd),
+        design: statusEmoji(f.design),
+        be: statusEmoji(f.beDev),
+        fe: statusEmoji(f.feDev),
+        pat: statusEmoji(f.pat),
+        qa: statusEmoji(f.qa)
+      }));
+
+      out += jsonTable("📋 Feature Readiness", [
+        { key: "feature", header: "Feature" },
+        { key: "prd", header: "PRD" },
+        { key: "design", header: "Design" },
+        { key: "be", header: "BE" },
+        { key: "fe", header: "FE" },
+        { key: "pat", header: "PAT" },
+        { key: "qa", header: "QA" }
+      ], rows);
+      out += "\n\n";
+    }
+  } catch (e) {
+    console.error("Feature readiness fetch error:", e.message);
   }
 
   // ============== COMMENTS & INSIGHTS ==============
