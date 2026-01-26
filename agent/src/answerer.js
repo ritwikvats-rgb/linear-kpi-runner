@@ -1100,13 +1100,15 @@ async function generateMobilePodNarrative(pod, projectCount, stats, projects, po
     if (pendingDels.length > 0) {
       const rows = pendingDels.map(d => ({
         id: d.identifier,
-        title: d.title.length > 35 ? d.title.substring(0, 35) + "..." : d.title,
+        title: d.title.length > 30 ? d.title.substring(0, 30) + "..." : d.title,
+        project: d.project ? (d.project.length > 20 ? d.project.substring(0, 20) + "..." : d.project) : "-",
         assignee: d.assignee || "Unassigned",
         state: d.state
       }));
       out += jsonTable(`⚠️ Pending DELs (${pendingDels.length})`, [
         { key: "id", header: "ID" },
         { key: "title", header: "Title" },
+        { key: "project", header: "Project" },
         { key: "assignee", header: "Assignee" },
         { key: "state", header: "State" }
       ], rows);
