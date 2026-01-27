@@ -599,8 +599,14 @@
       document.getElementById('deliveryDetail').textContent = `${heroMetrics.totalCompleted}/${heroMetrics.totalCommitted} DELs`;
       document.getElementById('delCycleBadge').textContent = heroMetrics.currentCycle;
 
-      // Delivery chart
+      // Delivery chart - 3D-style bars with shadows
       if (chartInstances.delivery) chartInstances.delivery.destroy();
+      const deliveryColors = deliveryChart.data.datasets[0].data.map(v =>
+        v >= 70 ? '#10b981' : v >= 40 ? '#f59e0b' : '#ef4444'
+      );
+      const deliveryBorderColors = deliveryChart.data.datasets[0].data.map(v =>
+        v >= 70 ? '#059669' : v >= 40 ? '#d97706' : '#dc2626'
+      );
       chartInstances.delivery = new Chart(document.getElementById('deliveryChart'), {
         type: 'bar',
         data: {
@@ -608,10 +614,11 @@
           datasets: [{
             label: 'Delivery %',
             data: deliveryChart.data.datasets[0].data,
-            backgroundColor: deliveryChart.data.datasets[0].data.map(v =>
-              v >= 70 ? '#10b981' : v >= 40 ? '#f59e0b' : '#ef4444'
-            ),
-            borderRadius: 6
+            backgroundColor: deliveryColors,
+            borderColor: deliveryBorderColors,
+            borderWidth: { top: 0, right: 3, bottom: 3, left: 0 },
+            borderRadius: 6,
+            borderSkipped: false
           }]
         },
         options: {
@@ -622,7 +629,9 @@
             datalabels: {
               anchor: 'end',
               align: 'top',
-              formatter: v => v + '%'
+              formatter: v => v + '%',
+              font: { weight: 'bold', size: 12 },
+              color: '#1e293b'
             }
           },
           scales: {
@@ -631,7 +640,7 @@
         }
       });
 
-      // Trend chart
+      // Trend chart - with data labels
       if (cycleTrendChart && cycleTrendChart.data) {
         if (chartInstances.trend) chartInstances.trend.destroy();
         const colors = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
@@ -644,15 +653,30 @@
               borderColor: colors[i % colors.length],
               backgroundColor: colors[i % colors.length] + '20',
               tension: 0.3,
-              borderWidth: 2,
-              pointRadius: 4
+              borderWidth: 3,
+              pointRadius: 6,
+              pointBackgroundColor: colors[i % colors.length],
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2,
+              pointHoverRadius: 8
             }))
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-              datalabels: { display: false }
+              datalabels: {
+                display: true,
+                anchor: 'end',
+                align: 'top',
+                offset: 4,
+                formatter: v => v + '%',
+                font: { weight: 'bold', size: 11 },
+                color: '#1e293b',
+                backgroundColor: 'rgba(255,255,255,0.8)',
+                borderRadius: 4,
+                padding: { top: 2, bottom: 2, left: 4, right: 4 }
+              }
             },
             scales: {
               y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } }
@@ -717,7 +741,7 @@
         });
       }
 
-      // Pod features bar chart
+      // Pod features bar chart - 3D style
       if (chartInstances.podFeature) chartInstances.podFeature.destroy();
       const podNames = Object.keys(data.heroMetrics.topPerformer ? { [data.heroMetrics.topPerformer.pod]: 1 } : {});
       // Use delivery chart labels as pod names
@@ -730,7 +754,10 @@
               label: 'Active Projects',
               data: data.deliveryChart.meta.committed,
               backgroundColor: '#4f46e5',
-              borderRadius: 6
+              borderColor: '#3730a3',
+              borderWidth: { top: 0, right: 3, bottom: 3, left: 0 },
+              borderRadius: 6,
+              borderSkipped: false
             }]
           },
           options: {
@@ -738,7 +765,12 @@
             maintainAspectRatio: false,
             plugins: {
               legend: { display: false },
-              datalabels: { anchor: 'end', align: 'top' }
+              datalabels: {
+                anchor: 'end',
+                align: 'top',
+                font: { weight: 'bold', size: 12 },
+                color: '#1e293b'
+              }
             }
           }
         });
@@ -766,13 +798,19 @@
               label: 'Completed',
               data: completed,
               backgroundColor: '#10b981',
-              borderRadius: 4
+              borderColor: '#059669',
+              borderWidth: { top: 0, right: 3, bottom: 3, left: 0 },
+              borderRadius: 4,
+              borderSkipped: false
             },
             {
               label: 'Pending',
               data: committed.map((c, i) => c - completed[i]),
               backgroundColor: '#f59e0b',
-              borderRadius: 4
+              borderColor: '#d97706',
+              borderWidth: { top: 0, right: 3, bottom: 3, left: 0 },
+              borderRadius: 4,
+              borderSkipped: false
             }
           ]
         },
