@@ -34,6 +34,8 @@
  *  - FREEZE_POLICY_CYCLE=C2 (default) meaning C1/C2 freeze after C2 ends
  */
 
+require("dotenv").config();
+
 const fs = require("fs");
 const path = require("path");
 const Database = require("better-sqlite3");
@@ -46,6 +48,12 @@ const {
   isCycleActive,
   cycleIndex,
 } = require("../agent/src/shared/cycleUtils");
+
+// Historical data tracking
+const {
+  openHistoryDb,
+  captureWeeklySnapshot,
+} = require("../agent/src/historicalDataService");
 
 const { norm } = require("../agent/src/shared/labelUtils");
 
@@ -645,6 +653,31 @@ async function main() {
 
   printFeatureMovementTable(kpiB);
   writeWeeklyReport(org, podCalendars, kpiB);
+
+  // ========== HISTORICAL DATA CAPTURE ==========
+  // Transform CSV-format rows to chart-format for history service
+  const cycleKpiForHistory = kpiA.map(r => ({
+    pod: r.Pod,
+    cycle: r.Cycle,
+    committed: r.Committed_DEL,
+    completed: r.Completed_DEL,
+    deliveryPct: r.DeliveryPct,
+    spillover: r.Spillover,
+  }));
+
+  const featureMovementForHistory = kpiB.map(r => ({
+    pod: r.Pod,
+    plannedFeatures: r.PlannedFeatures,
+    done: r.Done,
+    inFlight: r.InFlight,
+    notStarted: r.NotStarted,
+  }));
+
+  // Capture weekly snapshot for historical analysis
+  const historyDb = openHistoryDb();
+  captureWeeklySnapshot(historyDb, cycleKpiForHistory, featureMovementForHistory, cycleToPrint);
+  historyDb.close();
+  // ==============================================
 
   console.log(`\n=== RUN SUMMARY ===`);
   console.log(`Org: ${org.name} (urlKey=${org.urlKey}, orgId=${org.id})`);
