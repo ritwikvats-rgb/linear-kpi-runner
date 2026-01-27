@@ -868,22 +868,28 @@ async function generateAllPodsSummary() {
 
   // ============== 3. PENDING DELs BY POD ==============
   // Fetch pending DELs for all pods
-  const pendingDelsResult = await fetchPendingDELs(null); // null = all pods
-  if (pendingDelsResult.success && pendingDelsResult.dels.length > 0) {
-    const rows = pendingDelsResult.dels.slice(0, 15).map(d => ({
-      pod: d.pod || "-",
-      del: d.title.length > 35 ? d.title.substring(0, 35) + "..." : d.title,
-      assignee: d.assignee || "Unassigned",
-      state: d.state || "-"
-    }));
+  try {
+    const pendingDelsResult = await fetchPendingDELs(null); // null = all pods
+    const dels = pendingDelsResult?.dels || [];
+    if (pendingDelsResult?.success && dels.length > 0) {
+      const rows = dels.slice(0, 15).map(d => ({
+        pod: d.pod || "-",
+        del: (d.title || "").length > 35 ? d.title.substring(0, 35) + "..." : (d.title || "-"),
+        assignee: d.assignee || "Unassigned",
+        state: d.state || "-"
+      }));
 
-    out += jsonTable(`📅 Pending DELs (${pendingDelsResult.dels.length} total)`, [
-      { key: "pod", header: "Pod" },
-      { key: "del", header: "DEL" },
-      { key: "assignee", header: "Assignee" },
-      { key: "state", header: "State" }
-    ], rows);
-    out += "\n\n";
+      out += jsonTable(`📅 Pending DELs (${dels.length} total)`, [
+        { key: "pod", header: "Pod" },
+        { key: "del", header: "DEL" },
+        { key: "assignee", header: "Assignee" },
+        { key: "state", header: "State" }
+      ], rows);
+      out += "\n\n";
+    }
+  } catch (e) {
+    // Skip pending DELs section if fetch fails
+    console.error("Failed to fetch pending DELs:", e.message);
   }
 
   // ============== 4. INSIGHTS ==============
