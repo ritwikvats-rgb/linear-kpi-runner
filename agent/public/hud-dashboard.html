@@ -564,14 +564,77 @@
     setInterval(updateTime, 1000);
     updateTime();
 
-    // Fetch and render data
-    async function loadDashboard() {
+    // Cache keys for localStorage
+    const CACHE_KEYS = {
+      chartData: 'kpi_dashboard_chartData',
+      insightsData: 'kpi_dashboard_insightsData',
+      timestamp: 'kpi_dashboard_timestamp'
+    };
+
+    // Load cached data immediately (instant display)
+    function loadFromCache() {
+      try {
+        const cachedChartData = localStorage.getItem(CACHE_KEYS.chartData);
+        const cachedInsightsData = localStorage.getItem(CACHE_KEYS.insightsData);
+        const cachedTimestamp = localStorage.getItem(CACHE_KEYS.timestamp);
+
+        if (cachedChartData) {
+          const chartData = JSON.parse(cachedChartData);
+          if (chartData.success) {
+            renderDelMetrics(chartData);
+            renderFeatureMetrics(chartData);
+            renderPodHealth(chartData);
+          }
+        }
+
+        if (cachedInsightsData) {
+          const insightsData = JSON.parse(cachedInsightsData);
+          if (insightsData.success) {
+            renderInsights(insightsData.insights);
+          }
+        }
+
+        if (cachedTimestamp) {
+          document.getElementById('lastUpdate').textContent = cachedTimestamp + ' (cached)';
+        }
+
+        return !!(cachedChartData || cachedInsightsData);
+      } catch (e) {
+        console.warn('Cache load failed:', e);
+        return false;
+      }
+    }
+
+    // Save data to cache
+    function saveToCache(chartData, insightsData) {
+      try {
+        if (chartData) localStorage.setItem(CACHE_KEYS.chartData, JSON.stringify(chartData));
+        if (insightsData) localStorage.setItem(CACHE_KEYS.insightsData, JSON.stringify(insightsData));
+        localStorage.setItem(CACHE_KEYS.timestamp, new Date().toLocaleString('en-IN'));
+      } catch (e) {
+        console.warn('Cache save failed:', e);
+      }
+    }
+
+    // Fetch fresh data and update
+    async function loadDashboard(showLoadingIfNoCache = true) {
+      // Show cached data instantly
+      const hasCache = loadFromCache();
+
+      // If no cache, show loading indicators
+      if (!hasCache && showLoadingIfNoCache) {
+        document.getElementById('deliveryRate').textContent = '--%';
+        document.getElementById('deliveryDetail').textContent = 'Loading...';
+      }
+
+      // Fetch fresh data in background
       try {
         const [chartData, insightsData] = await Promise.all([
           fetch('/api/charts/data').then(r => r.json()),
           fetch('/api/charts/insights').then(r => r.json())
         ]);
 
+        // Render fresh data
         if (chartData.success) {
           renderDelMetrics(chartData);
           renderFeatureMetrics(chartData);
@@ -582,9 +645,13 @@
           renderInsights(insightsData.insights);
         }
 
+        // Save to cache for next visit
+        saveToCache(chartData, insightsData);
+
         document.getElementById('lastUpdate').textContent = new Date().toLocaleString('en-IN');
       } catch (err) {
         console.error('Dashboard load error:', err);
+        // Keep showing cached data if fetch fails
       }
     }
 
