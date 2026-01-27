@@ -492,7 +492,7 @@
           </div>
         </div>
         <div class="chart-card">
-          <div class="chart-title">Features by Pod</div>
+          <div class="chart-title">Feature + Tech Debt: Planned vs Completed</div>
           <div class="chart-container small">
             <canvas id="podFeatureChart"></canvas>
           </div>
@@ -808,11 +808,70 @@
         });
       }
 
-      // Pod features bar chart - 3D style
+      // Pod features bar chart - Planned vs Completed comparison with 3D style
       if (chartInstances.podFeature) chartInstances.podFeature.destroy();
-      const podNames = Object.keys(data.heroMetrics.topPerformer ? { [data.heroMetrics.topPerformer.pod]: 1 } : {});
-      // Use delivery chart labels as pod names
-      if (data.deliveryChart) {
+
+      // Use featureByPodChart data if available, otherwise fallback to deliveryChart
+      if (data.featureByPodChart && data.featureByPodChart.data) {
+        const fbp = data.featureByPodChart;
+        chartInstances.podFeature = new Chart(document.getElementById('podFeatureChart'), {
+          type: 'bar',
+          data: {
+            labels: fbp.data.labels,
+            datasets: [
+              {
+                label: 'Planned',
+                data: fbp.data.datasets[0].data,
+                backgroundColor: '#6366f1',
+                borderColor: '#4338ca',
+                borderWidth: { top: 0, right: 3, bottom: 3, left: 0 },
+                borderRadius: 6,
+                borderSkipped: false
+              },
+              {
+                label: 'Completed',
+                data: fbp.data.datasets[1].data,
+                backgroundColor: '#10b981',
+                borderColor: '#059669',
+                borderWidth: { top: 0, right: 3, bottom: 3, left: 0 },
+                borderRadius: 6,
+                borderSkipped: false
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: true,
+                position: 'top',
+                labels: { usePointStyle: true, padding: 15 }
+              },
+              datalabels: {
+                anchor: 'end',
+                align: 'top',
+                font: { weight: 'bold', size: 11 },
+                color: '#1e293b',
+                formatter: (value, ctx) => {
+                  // Show completion rate for Completed bars
+                  if (ctx.datasetIndex === 1 && fbp.meta && fbp.meta.completionRates) {
+                    return value + ' (' + fbp.meta.completionRates[ctx.dataIndex] + '%)';
+                  }
+                  return value;
+                }
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: { display: true, text: 'Features' }
+              }
+            }
+          }
+        });
+      } else if (data.deliveryChart) {
+        // Fallback to old behavior
         chartInstances.podFeature = new Chart(document.getElementById('podFeatureChart'), {
           type: 'bar',
           data: {

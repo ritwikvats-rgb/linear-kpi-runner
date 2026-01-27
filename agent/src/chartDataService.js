@@ -55,6 +55,9 @@ async function getChartData() {
   const podHealthChart = buildPodHealthChart(cycleKpi, featureMovement, currentCycle);
   const heroMetrics = buildHeroMetrics(cycleKpi, featureMovement, currentCycle);
 
+  // Build per-pod feature comparison data for Planned vs Completed chart
+  const featureByPodChart = buildFeatureByPodChart(featureMovement);
+
   return {
     success: true,
     currentCycle,
@@ -64,6 +67,7 @@ async function getChartData() {
     cycleTrendChart,
     podHealthChart,
     heroMetrics,
+    featureByPodChart,
   };
 }
 
@@ -145,6 +149,56 @@ function buildFeatureProgressChart(featureMovement) {
     meta: {
       totalFeatures: totals.total,
       donePercentage: totals.total > 0 ? Math.round((totals.done / totals.total) * 100) : 0,
+    },
+  };
+}
+
+/**
+ * Build Feature by Pod chart data (Grouped Bar)
+ * Shows Planned vs Completed features per pod
+ */
+function buildFeatureByPodChart(featureMovement) {
+  // Sort by planned features descending
+  const sorted = [...featureMovement].sort((a, b) =>
+    (b.plannedFeatures || 0) - (a.plannedFeatures || 0)
+  );
+
+  const labels = sorted.map(r => r.pod);
+  const planned = sorted.map(r => r.plannedFeatures || 0);
+  const completed = sorted.map(r => r.done || 0);
+
+  return {
+    type: "groupedBar",
+    title: "Feature + Tech Debt: Planned vs Completed",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Planned",
+          data: planned,
+          backgroundColor: "#6366f1",
+          borderColor: "#4338ca",
+          borderWidth: { top: 0, right: 3, bottom: 3, left: 0 },
+          borderRadius: 6,
+          borderSkipped: false,
+        },
+        {
+          label: "Completed",
+          data: completed,
+          backgroundColor: "#10b981",
+          borderColor: "#059669",
+          borderWidth: { top: 0, right: 3, bottom: 3, left: 0 },
+          borderRadius: 6,
+          borderSkipped: false,
+        }
+      ],
+    },
+    meta: {
+      inFlight: sorted.map(r => r.inFlight || 0),
+      notStarted: sorted.map(r => r.notStarted || 0),
+      completionRates: sorted.map(r =>
+        r.plannedFeatures > 0 ? Math.round((r.done / r.plannedFeatures) * 100) : 0
+      ),
     },
   };
 }
