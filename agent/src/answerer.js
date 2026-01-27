@@ -163,7 +163,8 @@ async function fetchPodFeatureReadiness(projects) {
           feDev: feature.phases["FE Dev"]?.status || "na",
           pat: feature.phases.PAT?.status || "na",
           qa: feature.phases.QA?.status || "na",
-          projectState: projectState
+          projectState: projectState,
+          isTechDebt: featureTechDebt // Track for sorting
         };
 
         readiness.features.push(featureData);
@@ -189,11 +190,18 @@ async function fetchPodFeatureReadiness(projects) {
         feDev: "na",
         pat: "na",
         qa: "na",
-        projectState: projectState
+        projectState: projectState,
+        isTechDebt: techDebt // Track for sorting
       };
       readiness.features.push(featureData);
     }
   }
+
+  // Sort features: Regular features FIRST, Tech Debt at the BOTTOM
+  readiness.features.sort((a, b) => {
+    if (a.isTechDebt === b.isTechDebt) return 0;
+    return a.isTechDebt ? 1 : -1; // Tech debt goes to bottom
+  });
 
   return readiness;
 }
@@ -750,8 +758,8 @@ function formatDebugInfo() {
 }
 
 /**
- * Generate narrative summary for all pods (the two KPI tables + paragraph)
- * This matches the weekly KPI runner output format with beautified box tables
+ * Generate leadership dashboard for all pods
+ * Shows: Executive Summary table, Needs Attention, Pending DELs, Insights
  */
 async function generateAllPodsSummary() {
   const result = await computeCombinedKpi();
@@ -766,72 +774,154 @@ async function generateAllPodsSummary() {
 
   let out = "";
 
-  // ============== TABLE A: Feature Movement (Beautified Box) ==============
-  if (fmRows.length > 0) {
-    out += formatFeatureMovementBox(fmRows, {
-      title: "A) Feature Movement (Weekly Snapshot)"
+  // ============== 1. EXECUTIVE SUMMARY (Pod-wise Breakdown) ==============
+  // Combine feature movement and DEL data into one comprehensive table
+  const podData = [];
+  let totals = { projects: 0, done: 0, inFlight: 0, notStarted: 0, delsCommitted: 0, delsCompleted: 0 };
+
+  for (const fm of fmRows) {
+    const delRow = cycleRows.find(d => d.pod === fm.pod);
+    const projects = fm.plannedFeatures || 0;
+    const done = fm.done || 0;
+    const inFlight = fm.inFlight || 0;
+    const notStarted = fm.notStarted || 0;
+    const delsCommitted = delRow?.committed || 0;
+    const delsCompleted = delRow?.completed || 0;
+    const deliveryPct = delRow?.deliveryPct || "0%";
+
+    // Calculate health based on delivery %
+    const pctNum = parseInt(deliveryPct) || 0;
+    let health = "🔴";
+    if (pctNum >= 70) health = "🟢";
+    else if (pctNum >= 40) health = "🟡";
+    else if (pctNum > 0) health = "🟠";
+
+    podData.push({
+      pod: fm.pod,
+      projects,
+      done,
+      inFlight,
+      notStarted,
+      delsCommitted,
+      delsCompleted,
+      deliveryPct,
+      health
     });
-  } else if (result.featureError) {
-    out += `A) Feature Movement: ${result.featureError}\n`;
-  } else {
-    out += "A) Feature Movement: No data available\n";
+
+    // Accumulate totals
+    totals.projects += projects;
+    totals.done += done;
+    totals.inFlight += inFlight;
+    totals.notStarted += notStarted;
+    totals.delsCommitted += delsCommitted;
+    totals.delsCompleted += delsCompleted;
   }
 
-  out += "\n";
+  // Calculate overall delivery %
+  const overallDeliveryPct = totals.delsCommitted > 0
+    ? Math.round((totals.delsCompleted / totals.delsCommitted) * 100) + "%"
+    : "0%";
 
-  // ============== TABLE B: DEL KPI (Beautified Box) ==============
-  if (cycleRows.length > 0) {
-    out += formatDelKpiBox(cycleRows, cycle, {
-      title: `B) DEL KPI (Cycle=${cycle})`
+  // Build executive summary table
+  out += jsonTable(`📊 Executive Summary (${cycle})`, [
+    { key: "pod", header: "Pod" },
+    { key: "projects", header: "Projects" },
+    { key: "done", header: "Done" },
+    { key: "inFlight", header: "In-Flight" },
+    { key: "notStarted", header: "Not Started" },
+    { key: "delsCommitted", header: `DELs (${cycle})` },
+    { key: "delsCompleted", header: "Completed" },
+    { key: "deliveryPct", header: "Delivery %" },
+    { key: "health", header: "Health" }
+  ], [
+    ...podData,
+    // TOTAL row
+    {
+      pod: "TOTAL",
+      projects: totals.projects,
+      done: totals.done,
+      inFlight: totals.inFlight,
+      notStarted: totals.notStarted,
+      delsCommitted: totals.delsCommitted,
+      delsCompleted: totals.delsCompleted,
+      deliveryPct: overallDeliveryPct,
+      health: ""
+    }
+  ]);
+  out += "\n\n";
+
+  // ============== 2. NEEDS ATTENTION ==============
+  const atRiskPods = podData.filter(p => {
+    const pct = parseInt(p.deliveryPct) || 0;
+    return pct < 50 && p.delsCommitted > 0;
+  });
+
+  if (atRiskPods.length > 0) {
+    out += `### ⚠️ Needs Attention\n\n`;
+    out += `**Low Delivery (<50%):**\n`;
+    for (const p of atRiskPods) {
+      const pending = p.delsCommitted - p.delsCompleted;
+      out += `- ${p.pod}: ${p.deliveryPct} delivery (${pending} DELs pending)\n`;
+    }
+    out += "\n";
+  }
+
+  // ============== 3. PENDING DELs BY POD ==============
+  // Fetch pending DELs for all pods
+  const pendingDelsResult = await fetchPendingDELs(null); // null = all pods
+  if (pendingDelsResult.success && pendingDelsResult.dels.length > 0) {
+    const rows = pendingDelsResult.dels.slice(0, 15).map(d => ({
+      pod: d.pod || "-",
+      del: d.title.length > 35 ? d.title.substring(0, 35) + "..." : d.title,
+      assignee: d.assignee || "Unassigned",
+      state: d.state || "-"
+    }));
+
+    out += jsonTable(`📅 Pending DELs (${pendingDelsResult.dels.length} total)`, [
+      { key: "pod", header: "Pod" },
+      { key: "del", header: "DEL" },
+      { key: "assignee", header: "Assignee" },
+      { key: "state", header: "State" }
+    ], rows);
+    out += "\n\n";
+  }
+
+  // ============== 4. INSIGHTS ==============
+  const insights = [];
+
+  // Pods with 0% delivery
+  const zeroDeliveryPods = podData.filter(p => parseInt(p.deliveryPct) === 0 && p.delsCommitted > 0);
+  if (zeroDeliveryPods.length > 0) {
+    insights.push(`${zeroDeliveryPods.length} pod${zeroDeliveryPods.length > 1 ? "s" : ""} at 0% delivery: ${zeroDeliveryPods.map(p => p.pod).join(", ")}`);
+  }
+
+  // High performers
+  const highPerformers = podData.filter(p => parseInt(p.deliveryPct) >= 70 && p.delsCommitted > 0);
+  if (highPerformers.length > 0) {
+    insights.push(`${highPerformers.map(p => p.pod).join(", ")} leading with 70%+ delivery`);
+  }
+
+  // Not started percentage
+  const notStartedPct = totals.projects > 0 ? Math.round((totals.notStarted / totals.projects) * 100) : 0;
+  if (notStartedPct > 50) {
+    insights.push(`${notStartedPct}% of projects not started - consider prioritization review`);
+  }
+
+  // At risk count
+  if (atRiskPods.length > 0) {
+    insights.push(`${atRiskPods.length} pod${atRiskPods.length > 1 ? "s" : ""} below 50% delivery need focus`);
+  }
+
+  if (insights.length > 0) {
+    out += `### 💡 Insights\n\n`;
+    insights.forEach((insight, i) => {
+      out += `${i + 1}. ${insight}\n`;
     });
-  } else if (result.delError) {
-    out += `B) DEL KPI: ${result.delError}\n`;
-  } else {
-    out += `B) DEL KPI: No data for cycle ${cycle}\n`;
+    out += "\n";
   }
 
-  out += "\n";
-
-  // ============== SUMMARY PARAGRAPH ==============
-  out += `--- Summary ---\n`;
-
-  // Build summary based on real data
-  const summaryParts = [];
-
-  // Feature movement insights
-  const activePods = fmRows.filter(r => r.inFlight > 0);
-  if (activePods.length > 0) {
-    summaryParts.push(`${activePods.length} pod${activePods.length > 1 ? "s" : ""} have active work in flight`);
-  }
-
-  const completedPods = fmRows.filter(r => r.done > 0 && r.done === r.plannedFeatures);
-  if (completedPods.length > 0) {
-    summaryParts.push(`${completedPods.map(r => r.pod).join(", ")} ${completedPods.length === 1 ? "has" : "have"} completed all planned features`);
-  }
-
-  const zeroPods = fmRows.filter(r => r.plannedFeatures === 0);
-  if (zeroPods.length > 0) {
-    summaryParts.push(`${zeroPods.map(r => r.pod).join(", ")} ${zeroPods.length === 1 ? "has" : "have"} no projects mapped`);
-  }
-
-  // DEL insights
-  const highDelivery = cycleRows.filter(r => parseInt(r.deliveryPct) >= 80 && r.committed > 0);
-  if (highDelivery.length > 0) {
-    summaryParts.push(`${highDelivery.map(r => r.pod).join(", ")} ${highDelivery.length === 1 ? "is" : "are"} at 80%+ delivery`);
-  }
-
-  const spilloverPods = cycleRows.filter(r => r.spillover > 0);
-  if (spilloverPods.length > 0) {
-    summaryParts.push(`Spillover: ${spilloverPods.map(r => `${r.pod} (${r.spillover})`).join(", ")}`);
-  }
-
-  if (summaryParts.length > 0) {
-    out += summaryParts.join(". ") + ".\n";
-  } else {
-    out += "All pods progressing normally.\n";
-  }
-
-  out += `\nSnapshot: ${formatToIST(result.fetchedAt)}`;
+  // ============== FOOTER ==============
+  out += `---\nSource: Linear | ${formatToIST(result.fetchedAt)}`;
 
   return out;
 }
