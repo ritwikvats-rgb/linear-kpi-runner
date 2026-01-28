@@ -473,7 +473,8 @@ function extractProjectFromNaturalLanguage(input) {
 
   // Patterns that indicate a project-specific query
   const patterns = [
-    /what(?:'s|s| is) (?:going on|happening) (?:in|with|on) (.+?)(?:\?|$)/i,
+    /deep ?dive (?:into|on|for|in)? ?(.+?)(?:\?|$)/i,  // "deep dive into X", "deep dive X"
+    /what(?:'s|s| is) (?:going on|happening) (?:in|with|on)? ?(.+?)(?:\?|$)/i,  // "whats going on X" or "whats going on in X"
     /(?:status|update|progress|details?) (?:of|on|for) (.+?)(?:\?|$)/i,
     /(?:tell me about|show me|give me) (.+?)(?:\?|$)/i,
     /how(?:'s| is) (.+?) (?:doing|going|progressing)(?:\?|$)/i,
@@ -500,6 +501,84 @@ function extractProjectFromNaturalLanguage(input) {
   }
 
   return null;
+}
+
+/**
+ * LLM-based query interpreter for natural language understanding
+ * Handles typos, variations, and extracts intent
+ */
+async function interpretQueryWithLLM(input, availablePods, availableProjects) {
+  const podList = availablePods.join(", ");
+  const projectList = availableProjects.slice(0, 30).join(", ");
+
+  const messages = [
+    {
+      role: "system",
+      content: `You are a query interpreter for a project management dashboard. Your job is to understand what the user wants and extract structured intent.
+
+## AVAILABLE PODS
+${podList}
+
+## SAMPLE PROJECTS (there are more)
+${projectList}
+
+## YOUR TASK
+1. Understand what the user is asking about
+2. Correct any typos in pod/project names
+3. Return a JSON object with the intent
+
+## INTENT TYPES
+- "pod_info" - User wants info about a specific pod (e.g., "whats up with fts", "how is talent studio doing")
+- "project_info" - User wants info about a specific project (e.g., "AI interviewer status", "deep dive data cohorts")
+- "all_pods" - User wants overview of all pods (e.g., "how are all teams doing", "overall status")
+- "unknown" - Can't determine intent
+
+## OUTPUT FORMAT (JSON only, no explanation)
+{
+  "intent": "pod_info" | "project_info" | "all_pods" | "unknown",
+  "entity": "corrected pod or project name" | null,
+  "confidence": "high" | "medium" | "low",
+  "corrected_query": "what user probably meant"
+}
+
+## EXAMPLES
+Input: "whats going on AI Interviwer"
+Output: {"intent": "project_info", "entity": "AI Interviewer", "confidence": "high", "corrected_query": "What's going on with AI Interviewer project?"}
+
+Input: "fts stauts"
+Output: {"intent": "pod_info", "entity": "FTS", "confidence": "high", "corrected_query": "FTS status"}
+
+Input: "how is talnet studio"
+Output: {"intent": "pod_info", "entity": "Talent Studio", "confidence": "high", "corrected_query": "How is Talent Studio doing?"}
+
+Input: "deep dive into data driven cohorts"
+Output: {"intent": "project_info", "entity": "Data-Driven Cohorts", "confidence": "high", "corrected_query": "Deep dive into Data-Driven Cohorts project"}
+
+Input: "hello"
+Output: {"intent": "unknown", "entity": null, "confidence": "low", "corrected_query": null}`
+    },
+    { role: "user", content: input }
+  ];
+
+  try {
+    const response = await fuelixChat({ messages, temperature: 0 });
+    // Extract JSON from response
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        success: true,
+        intent: parsed.intent,
+        entity: parsed.entity,
+        confidence: parsed.confidence,
+        correctedQuery: parsed.corrected_query,
+      };
+    }
+  } catch (e) {
+    // LLM failed, return unknown
+  }
+
+  return { success: false, intent: "unknown", entity: null };
 }
 
 /**
@@ -2229,6 +2308,64 @@ async function answer(question, snapshot, options = {}) {
     if (deterministic) return deterministic;
   }
 
+  // LLM-based query interpretation for unknown commands
+  // This handles typos, natural language variations, etc.
+  if (cmd.type === "unknown") {
+    try {
+      // Get available pods and projects for context
+      const podsResult = listPods();
+      const availablePods = podsResult.pods.map(p => p.name);
+
+      // Get sample projects from all pods
+      const availableProjects = [];
+      for (const pod of podsResult.pods.slice(0, 3)) {
+        try {
+          const result = await getLiveProjects(pod.name);
+          if (result.success) {
+            availableProjects.push(...result.projects.map(p => p.name));
+          }
+        } catch (e) {}
+      }
+
+      // Interpret query with LLM
+      const interpretation = await interpretQueryWithLLM(question, availablePods, availableProjects);
+
+      if (interpretation.success && interpretation.intent !== "unknown") {
+        // Re-route based on LLM interpretation
+        if (interpretation.intent === "pod_info" && interpretation.entity) {
+          // Find matching pod
+          const podName = interpretation.entity.toLowerCase();
+          const matchedPod = availablePods.find(p =>
+            p.toLowerCase() === podName ||
+            p.toLowerCase().includes(podName) ||
+            podName.includes(p.toLowerCase())
+          );
+
+          if (matchedPod) {
+            // Recursively call answer with corrected query
+            return answer(`pod ${matchedPod}`, snapshot, options);
+          }
+        }
+
+        if (interpretation.intent === "project_info" && interpretation.entity) {
+          // Route to project deep dive
+          return answer(`project ${interpretation.entity}`, snapshot, options);
+        }
+
+        if (interpretation.intent === "all_pods") {
+          return answer("pods", snapshot, options);
+        }
+      }
+
+      // If LLM couldn't help, show helpful message with suggestion
+      if (interpretation.correctedQuery) {
+        return `I couldn't understand "${question}". Did you mean: **${interpretation.correctedQuery}**?\n\nTry commands like:\n- "pod fts" - View FTS pod status\n- "deep dive AI Interviewer" - Project deep dive\n- "pods" - List all pods`;
+      }
+    } catch (e) {
+      // LLM interpretation failed, continue to fallback
+    }
+  }
+
   // LLM fallback with snapshot
   if (snapshot) {
     const messages = [
@@ -2239,7 +2376,7 @@ async function answer(question, snapshot, options = {}) {
     return out.trim();
   }
 
-  return "No snapshot loaded. Use /refresh to load data, or try a live command like 'pod fts' or 'pods'.";
+  return `I couldn't understand "${question}".\n\nTry commands like:\n- "pod fts" or "pod talent studio" - View pod status\n- "deep dive [project name]" - Project deep dive\n- "whats going on in [project]" - Project status\n- "pods" - List all pods`;
 }
 
 module.exports = { answer, parseCommand };
