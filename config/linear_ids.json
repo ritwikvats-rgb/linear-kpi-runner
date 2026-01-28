@@ -401,6 +401,55 @@
           "state": "started"
         }
       ]
+    },
+    "ML": {
+      "teamId": "c3c96f5b-54b6-4182-9df1-ca7882a8107d",
+      "initiativeName": "Q1 2026 - ML Roadmap",
+      "initiativeId": "5c4623bc-1d48-4566-a3b2-93cf2516e449",
+      "projects": []
+    },
+    "FOT": {
+      "teamId": "f2828bbe-6f0a-4c66-af53-55a9bbd8b830",
+      "initiativeName": "Q1 2026 - FOT Roadmap",
+      "initiativeId": "740114dc-7c1e-4e74-b19f-333170ed4e30",
+      "projects": [
+        {
+          "id": "bb1b8f58-f066-489d-a96d-a4affb85b00d",
+          "name": "[Q1'2026 Project]-Route Tracking App ad hoc enhancements",
+          "state": "backlog"
+        },
+        {
+          "id": "e0361ae3-5225-4be7-9050-c1243a0e1e52",
+          "name": "[Q1'2026 Project]-Data insights section - Individual Routes",
+          "state": "backlog"
+        },
+        {
+          "id": "b3aece73-dfa2-4dea-90ff-81427dc2a17f",
+          "name": "[Q1'2026 Project]-Product Exploration for Route planning tool",
+          "state": "backlog"
+        },
+        {
+          "id": "01e16402-e2f9-47bc-b46c-911b017ea61a",
+          "name": "[Q1'2026 Project]-Data insights section - Heat maps",
+          "state": "backlog"
+        },
+        {
+          "id": "48042ca9-e7ba-4df8-a943-fcae9c57d64c",
+          "name": "[Q1'2026 Project]-Data insights section - Meta data distribution",
+          "state": "backlog"
+        },
+        {
+          "id": "79ce612b-2bdc-41b8-9af5-e9d503bd1896",
+          "name": "[Q1'2026 Project]-Project Setup Console (Foundation Layer with RBAC)",
+          "state": "started"
+        }
+      ]
+    },
+    "BTS": {
+      "teamId": "bc93954a-d8dd-4eac-bddb-b9242b612ad6",
+      "initiativeName": "Q1 2026 – BTS Roadmap",
+      "initiativeId": "f5978c2c-3a72-4184-bd85-5305de2d31d3",
+      "projects": []
     }
   }
 }
