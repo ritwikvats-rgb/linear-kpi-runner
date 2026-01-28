@@ -1991,35 +1991,9 @@ async function answer(question, snapshot, options = {}) {
     }
 
     case "project_detail": {
-      // Search ALL pods and find the BEST matching project
-      const podsResult = listPods();
-      const allPodProjects = [];
-
-      for (const pod of podsResult.pods) {
-        const result = await getLiveProjects(pod.name);
-        if (result.success) {
-          allPodProjects.push({ podName: pod.name, projects: result.projects });
-        }
-      }
-
-      // Score all projects and find best match
-      let bestMatch = null;
-      for (const { podName, projects } of allPodProjects) {
-        for (const p of projects) {
-          const result = scoreProjectMatch(p, cmd.projectName);
-          if (result && (!bestMatch || result.score > bestMatch.score)) {
-            bestMatch = { podName, project: result.project, score: result.score };
-          }
-        }
-      }
-
-      if (bestMatch) {
-        const result = await getLiveProject(bestMatch.podName, bestMatch.project.name);
-        if (result.success) {
-          return formatProjectDetail(result);
-        }
-      }
-      return `Project "${cmd.projectName}" not found in any pod.\n\nTry: "pod <podname> projects" to see available projects.`;
+      // Redirect to project_deep_dive for the beautiful format with Key Discussions
+      // This ensures all project queries get the same rich output
+      return answer(`deep dive ${cmd.projectName}`, snapshot, options);
     }
 
     case "project_blockers": {
