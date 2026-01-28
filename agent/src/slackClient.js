@@ -242,9 +242,11 @@ class SlackClient {
    */
   async getUserInfo(userId) {
     try {
-      const result = await this.api("users.info", { user: userId });
+      // users.info requires form-urlencoded format
+      const result = await this.api("users.info", { user: userId }, { useForm: true });
       return result.user;
     } catch (e) {
+      console.warn(`Failed to get user info for ${userId}: ${e.message}`);
       return null;
     }
   }
