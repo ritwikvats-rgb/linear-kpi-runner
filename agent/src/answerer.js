@@ -970,6 +970,7 @@ async function fetchPodCommentsSummary(podName, projects) {
 
   const allComments = [];
   const allSlackMessages = [];
+  const allIssueData = []; // NEW: Store Linear issue metadata (assignees, status, descriptions)
   let hasSlackData = false;
 
   // Get channel mapper for Slack data
@@ -1007,6 +1008,38 @@ async function fetchPodCommentsSummary(podName, projects) {
       }
     } catch (e) {
       // Skip failed fetches
+    }
+
+    // Fetch Linear issue metadata (assignees, status, descriptions) - SOURCE OF TRUTH
+    const linearClient = getLinearClientForSlack();
+    if (linearClient && project.id) {
+      try {
+        const issues = await linearClient.getIssuesByProject(project.id);
+        if (issues && issues.length > 0) {
+          // Get active issues with relevant metadata (exclude completed/canceled)
+          const relevantIssues = issues
+            .filter(i => i.state?.type !== "completed" && i.state?.type !== "canceled")
+            .slice(0, 20)
+            .map(i => ({
+              identifier: i.identifier,
+              title: i.title,
+              status: i.state?.name || "Unknown",
+              statusType: i.state?.type || "unknown",
+              assignee: i.assignee?.name || "Unassigned",
+              description: i.description ? i.description.substring(0, 500) : null,
+              labels: i.labels?.nodes?.map(l => l.name) || [],
+            }));
+
+          if (relevantIssues.length > 0) {
+            allIssueData.push({
+              project: project.name,
+              issues: relevantIssues,
+            });
+          }
+        }
+      } catch (e) {
+        // Skip failed fetches
+      }
     }
 
     // Fetch Slack messages AND threads if project has a channel
@@ -1075,7 +1108,7 @@ async function fetchPodCommentsSummary(podName, projects) {
     }
   }
 
-  if (allComments.length === 0 && allSlackMessages.length === 0) return null;
+  if (allComments.length === 0 && allSlackMessages.length === 0 && allIssueData.length === 0) return null;
 
   // Helper function to clean Slack message text
   // Replaces <@USER_ID> mentions with resolved names or "someone"
@@ -1125,9 +1158,37 @@ async function fetchPodCommentsSummary(podName, projects) {
   let combinedText = "";
   const sources = [];
 
+  // FIRST: Add Linear issue metadata (SOURCE OF TRUTH for assignments and status)
+  if (allIssueData.length > 0) {
+    sources.push("Linear Issues");
+    combinedText += "\n## LINEAR ISSUE STATUS (SOURCE OF TRUTH)\n";
+    combinedText += "This is the ACTUAL state in Linear. Use this to verify/override any discussions.\n";
+    for (const { project, issues } of allIssueData) {
+      const shortName = project.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
+      combinedText += `\n### ${shortName} - Current Issues\n`;
+      for (const issue of issues) {
+        combinedText += `- [${issue.identifier}] "${issue.title}" | Status: ${issue.status} | Assignee: ${issue.assignee}`;
+        if (issue.labels.length > 0) {
+          combinedText += ` | Labels: ${issue.labels.join(", ")}`;
+        }
+        combinedText += "\n";
+        // Include description snippet for context (especially for QA, PRD, etc.)
+        if (issue.description && (
+          issue.title.toLowerCase().includes("qa") ||
+          issue.title.toLowerCase().includes("prd") ||
+          issue.title.toLowerCase().includes("design") ||
+          issue.title.toLowerCase().includes("spec")
+        )) {
+          const descSnippet = issue.description.substring(0, 200).replace(/\n/g, " ");
+          combinedText += `  Description: ${descSnippet}...\n`;
+        }
+      }
+    }
+  }
+
   if (allComments.length > 0) {
-    sources.push("Linear");
-    combinedText += "\n## LINEAR COMMENTS\n";
+    if (!sources.includes("Linear Issues")) sources.push("Linear");
+    combinedText += "\n## LINEAR COMMENTS (Discussion context)\n";
     for (const { project, comments } of allComments) {
       const shortName = project.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
       combinedText += `\n### ${shortName}\n`;
@@ -1139,7 +1200,7 @@ async function fetchPodCommentsSummary(podName, projects) {
 
   if (allSlackMessages.length > 0) {
     sources.push("Slack");
-    combinedText += "\n## SLACK DISCUSSIONS\n";
+    combinedText += "\n## SLACK DISCUSSIONS (Discussion context)\n";
     for (const { project, messages } of allSlackMessages) {
       const shortName = project.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
       combinedText += `\n### ${shortName} (Slack)\n`;
@@ -1162,62 +1223,76 @@ async function fetchPodCommentsSummary(podName, projects) {
     const messages = [
       {
         role: "system",
-        content: `You are a project status summarizer for engineering leadership. Summarize recent discussions from Linear comments AND Slack messages PROJECT-WISE.
+        content: `You are an intelligent project status summarizer for engineering leadership. You have THREE data sources with different priorities:
 
-CRITICAL - Understanding Comment Structure:
-- Format: "AuthorName: comment text" - the name BEFORE colon is the AUTHOR (person speaking)
-- @mentions (e.g., @sahil.choudhary) are people being REFERENCED, not the speaker
-- When author says "I'll do X", the AUTHOR will do it, not someone else
-- When author says "waiting for X from @person", @person needs to provide X to author
-- NEVER confuse the author with the mentioned person
+## DATA PRIORITY (MOST IMPORTANT)
+1. **LINEAR ISSUE STATUS = SOURCE OF TRUTH** - Actual assignments, statuses in Linear are FACTS
+2. **LINEAR COMMENTS** - Discussion context, updates, decisions
+3. **SLACK DISCUSSIONS** - Informal discussion, may be outdated or speculative
 
-Example Interpretation:
-- "sahana.bg: as discussed with @sahil.choudhary, I'll share the updated designs by EOD"
-  → Sahana wrote this. She will share designs after coordinating with Sahil.
-  → If later she says "awaiting final design from @sahil.choudhary", Sahil provides to Sahana
-  → CORRECT: "Awaiting final designs from Sahil; Sahana to proceed with tech spec after"
-  → WRONG: "Sahana to share designs" (misleading without context)
+## CRITICAL: CROSS-REFERENCE AND VERIFY
+- If Slack says "need to confirm who owns QA" but Linear shows "QA issue assigned to Chinmaya" → Report: "QA assigned to Chinmaya"
+- If Slack says "waiting for designs" but Linear shows "Design issue: Done" → Report: "Designs completed"
+- If discussion mentions uncertainty but Linear has concrete assignment → USE LINEAR DATA
+- ALWAYS check Linear Issue Status before reporting something as "unknown" or "pending confirmation"
 
-Rules:
-- Output each project on its own line with format: "ProjectName: summary"
-- NO markdown formatting (no **, ##, etc.)
-- Keep each project summary to 1-2 sentences
-- Focus on: current status, dependencies (who waits for whom), blockers, progress
-- Be precise about WHO is doing WHAT - use names clearly
-- When someone is blocked/waiting, state WHO provides WHAT to WHOM
-- Combine insights from both Linear and Slack if available
-- If Slack confirms something (PRD approved, designs shared), mention it
-- NEVER include raw IDs like U08CTADBLTX or <@U123ABC> in output - use names or "someone" instead
+## Understanding Comment Structure:
+- Format: "AuthorName: comment text" - name BEFORE colon is the AUTHOR
+- @mentions are people being REFERENCED, not the speaker
+- NEVER confuse author with mentioned person
 
-Example output format:
-Improved product guidance: Awaiting final designs from Sahil; Sahana to start tech spec and dev after designs received. Slack confirms PRD + Figma shared, scope limited to fts-console.
-Data-Driven Cohorts: UI work ongoing, Users page targeted for completion today. API contracts aligned per Slack discussion.
-Dynamic Workflows: Tech spec 80% complete by Rahul, initial boilerplate started by Priya.`
+## SMART SUMMARIZATION RULES:
+1. Output each project on its own line: "ProjectName: summary"
+2. NO markdown formatting (no **, ##, etc.)
+3. Keep each summary to 1-2 sentences
+4. Lead with FACTS from Linear Issues, then add context from discussions
+5. For key phases (QA, Design, PRD, Dev), always mention:
+   - WHO is assigned (from Linear Issue Status)
+   - WHAT is the status (Todo, In Progress, Done)
+6. Only mention something as "unconfirmed" if Linear Issue Status also shows it unassigned
+7. NEVER include raw IDs like U08CTADBLTX or <@U123ABC>
+
+## Example Smart Cross-Reference:
+Input:
+- Linear Issue: [FTS-3229] "QA" | Status: Todo | Assignee: chinmaya.nayak
+- Slack: "need to confirm who will own QA"
+
+Output: "QA assigned to Chinmaya (Todo status), testing requirements documented in Linear."
+NOT: "Need to confirm who will own QA" (WRONG - this ignores Linear facts)
+
+## Output Format:
+ProjectName: Status summary with assignee facts from Linear, supplemented by discussion context.`
       },
-      { role: "user", content: `Recent discussions from ${podName} pod:\n${combinedText}` },
+      { role: "user", content: `Recent data from ${podName} pod:\n${combinedText}` },
     ];
     const summary = await fuelixChat({ messages });
 
     const totalComments = allComments.reduce((sum, p) => sum + p.comments.length, 0);
     const totalSlackMsgs = allSlackMessages.reduce((sum, p) => sum + p.messages.length, 0);
+    const totalIssues = allIssueData.reduce((sum, p) => sum + p.issues.length, 0);
 
     return {
       commentCount: totalComments,
       slackMessageCount: totalSlackMsgs,
-      projectCount: Math.max(allComments.length, allSlackMessages.length),
+      issueCount: totalIssues,
+      projectCount: Math.max(allComments.length, allSlackMessages.length, allIssueData.length),
       hasSlackData,
+      hasIssueData: allIssueData.length > 0,
       sources: sources.join(" + "),
       summary: summary.trim().replace(/\*\*/g, "").replace(/^#+\s*/gm, ""),
     };
   } catch (e) {
     const totalComments = allComments.reduce((sum, p) => sum + p.comments.length, 0);
     const totalSlackMsgs = allSlackMessages.reduce((sum, p) => sum + p.messages.length, 0);
+    const totalIssues = allIssueData.reduce((sum, p) => sum + p.issues.length, 0);
 
     return {
       commentCount: totalComments,
       slackMessageCount: totalSlackMsgs,
-      projectCount: Math.max(allComments.length, allSlackMessages.length),
+      issueCount: totalIssues,
+      projectCount: Math.max(allComments.length, allSlackMessages.length, allIssueData.length),
       hasSlackData,
+      hasIssueData: allIssueData.length > 0,
       sources: sources.join(" + "),
       summary: null,
     };
