@@ -961,6 +961,177 @@ function getHealthStatus(score) {
 }
 
 /**
+ * Generate structured deep dive discussions for a single project
+ * Returns numbered key insights from Slack + Linear
+ */
+async function generateDeepDiveDiscussions(project) {
+  const linearClient = getLinearClientForSlack();
+  const slackClient = getSlackClient();
+  const channelMapper = getChannelMapper();
+
+  let slackMessages = [];
+  let linearComments = [];
+  let issues = [];
+
+  // Fetch Linear issues
+  if (linearClient && project.id) {
+    try {
+      const allIssues = await linearClient.getIssuesByProject(project.id);
+      issues = allIssues
+        .filter(i => i.state && i.state.type !== "completed" && i.state.type !== "canceled")
+        .map(i => ({
+          identifier: i.identifier,
+          title: i.title,
+          status: i.state ? i.state.name : "Unknown",
+          assignee: i.assignee ? i.assignee.name : "Unassigned",
+        }));
+
+      // Fetch comments for active issues
+      for (const issue of allIssues.slice(0, 10)) {
+        try {
+          const comments = await linearClient.getIssueComments(issue.id, 10);
+          const cutoff = new Date();
+          cutoff.setDate(cutoff.getDate() - 14);
+          for (const c of comments) {
+            if (new Date(c.createdAt) >= cutoff) {
+              linearComments.push({
+                issueId: issue.identifier,
+                author: c.user ? c.user.name : "Unknown",
+                body: c.body,
+              });
+            }
+          }
+        } catch (e) {}
+      }
+    } catch (e) {}
+  }
+
+  // Fetch Slack messages if channel configured
+  if (slackClient && channelMapper) {
+    try {
+      const projectsWithChannels = await channelMapper.getProjectsWithChannels();
+      const channelEntry = projectsWithChannels.find(e => e.project.id === project.id);
+
+      if (channelEntry) {
+        try {
+          await slackClient.joinChannel(channelEntry.channelId);
+        } catch (e) {}
+
+        const messages = await slackClient.getMessagesWithThreads(channelEntry.channelId, {
+          oldest: "0",
+          includeThreads: true,
+        });
+
+        const humanMessages = messages.filter(m => !m.bot_id && m.type === "message" && m.text);
+
+        // Resolve user names
+        const userIds = [...new Set(humanMessages.map(m => m.user).filter(Boolean))];
+        let userMap = {};
+        if (userIds.length > 0) {
+          try {
+            userMap = await slackClient.resolveUserNames(userIds);
+          } catch (e) {}
+        }
+
+        for (const m of humanMessages) {
+          const userName = userMap[m.user] || "Someone";
+          let text = m.text.replace(/<@([A-Z0-9]+)>/g, (match, userId) => {
+            return userMap[userId] || "someone";
+          });
+          slackMessages.push({ author: userName, text });
+
+          // Include thread replies
+          if (m.threadReplies) {
+            for (const r of m.threadReplies) {
+              if (!r.bot_id && r.text) {
+                const rName = userMap[r.user] || "Someone";
+                let rText = r.text.replace(/<@([A-Z0-9]+)>/g, (match, userId) => {
+                  return userMap[userId] || "someone";
+                });
+                slackMessages.push({ author: rName, text: rText, isReply: true });
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  // Build context for LLM
+  let context = "";
+
+  if (slackMessages.length > 0) {
+    context += "## SLACK DISCUSSIONS\n";
+    for (const m of slackMessages.slice(0, 100)) {
+      const prefix = m.isReply ? "  ↳ " : "- ";
+      context += `${prefix}${m.author}: ${m.text.substring(0, 300)}\n`;
+    }
+  }
+
+  if (linearComments.length > 0) {
+    context += "\n## LINEAR COMMENTS\n";
+    for (const c of linearComments.slice(0, 30)) {
+      context += `- [${c.issueId}] ${c.author}: ${c.body.substring(0, 300)}\n`;
+    }
+  }
+
+  if (!context) {
+    return { issues, keyDiscussions: null };
+  }
+
+  // Use LLM to extract key discussion points
+  try {
+    const messages = [
+      {
+        role: "system",
+        content: `You are an expert at extracting key discussion points from Slack and Linear conversations.
+
+Your job is to identify the MOST IMPORTANT discussion topics and summarize each as a numbered insight.
+
+## OUTPUT FORMAT
+Return 5-10 numbered insights. Each insight should:
+1. Start with a **bold topic** (2-4 words)
+2. Follow with a brief explanation (1-2 sentences)
+3. Include specific names, decisions, deadlines mentioned
+
+## WHAT TO EXTRACT
+- Delays or timeline changes
+- Key decisions made
+- Blockers or dependencies
+- Design/API/Architecture discussions
+- New requirements or scope changes
+- Action items with owners
+- QA/Testing concerns
+- Deployment or launch discussions
+
+## FORMAT EXAMPLE
+1. **Delivery Delayed 1-2 weeks** - Deployment pipeline setup delayed the project. QA activities deadline was Jan 26.
+2. **Domain Decision Pending** - Discussions on launching under TIAI brand vs Gradien. Options for telusinternational.ai subdomain.
+3. **BE Ad-hoc Requests** - Profile API modifications needed, Job preview enhancements for job type and domain icon.
+
+## RULES
+- NO markdown except **bold** for topic headers
+- Keep each insight to 1-2 sentences
+- Focus on DISCUSSIONS, not ticket statuses
+- Include WHO is doing WHAT when mentioned
+- Skip generic/trivial messages`
+      },
+      { role: "user", content: `Extract key discussion points from this project:\n\n${context}` },
+    ];
+
+    const summary = await fuelixChat({ messages });
+    return {
+      issues,
+      keyDiscussions: summary.trim(),
+      slackMessageCount: slackMessages.length,
+      linearCommentCount: linearComments.length,
+    };
+  } catch (e) {
+    return { issues, keyDiscussions: null };
+  }
+}
+
+/**
  * Fetch and summarize comments from all active projects in a pod
  * Includes both Linear comments AND Slack messages for projects with channel IDs
  */
@@ -2014,29 +2185,39 @@ async function answer(question, snapshot, options = {}) {
         output += "\n\n";
       }
 
-      // Comments/Discussion summary with Slack
-      const discussionSummary = await fetchPodCommentsSummary(matchedPod, [proj]);
-      if (discussionSummary && discussionSummary.summary) {
-        output += `### 💬 Recent Discussions\n${discussionSummary.summary}\n\n`;
-      } else if (commentsResult?.success && commentsResult.commentCount > 0) {
-        output += `### 💬 Recent Activity (${commentsResult.commentCount} comments)\n`;
-        try {
-          const messages = [
-            { role: "system", content: commentSummaryPrompt() },
-            { role: "user", content: `Project: ${proj.name}\nPod: ${matchedPod}\n\nRecent comments:\n${commentsResult.mergedText}` },
-          ];
-          const summary = await fuelixChat({ messages });
-          output += summary + "\n\n";
-        } catch (e) {
-          for (const c of commentsResult.comments.slice(0, 5)) {
-            output += `- **[${c.issueIdentifier}]** ${c.author}: ${c.body.substring(0, 150)}${c.body.length > 150 ? "..." : ""}\n`;
-          }
-          output += "\n";
-        }
+      // Generate structured deep dive discussions (Key Discussions from Slack + Linear)
+      const deepDive = await generateDeepDiveDiscussions(proj);
+
+      // Show Linear Issues table if we have issue data
+      if (deepDive.issues && deepDive.issues.length > 0) {
+        const issueRows = deepDive.issues.slice(0, 15).map(i => ({
+          issue: `${i.identifier} - ${i.title.length > 45 ? i.title.substring(0, 45) + "..." : i.title}`,
+          status: i.status,
+          assignee: i.assignee,
+        }));
+
+        output += jsonTable("📋 Linear Issues", [
+          { key: "issue", header: "Issue" },
+          { key: "status", header: "Status" },
+          { key: "assignee", header: "Assignee" },
+        ], issueRows);
+        output += "\n\n";
       }
 
-      const hasSlack = discussionSummary && discussionSummary.hasSlackData;
-      const sourceStr = hasSlack ? "Linear + Slack" : "Linear";
+      // Show Key Discussions (numbered insights)
+      if (deepDive.keyDiscussions) {
+        output += `### 💬 Key Discussions from Slack\n\n${deepDive.keyDiscussions}\n\n`;
+      } else if (commentsResult?.success && commentsResult.commentCount > 0) {
+        // Fallback to basic comments if no discussions generated
+        output += `### 💬 Recent Activity (${commentsResult.commentCount} comments)\n`;
+        for (const c of commentsResult.comments.slice(0, 5)) {
+          output += `- **[${c.issueIdentifier}]** ${c.author}: ${c.body.substring(0, 150)}${c.body.length > 150 ? "..." : ""}\n`;
+        }
+        output += "\n";
+      }
+
+      const hasSlack = deepDive.slackMessageCount > 0;
+      const sourceStr = hasSlack ? `Linear + Slack (${deepDive.slackMessageCount} messages)` : "Linear";
       output += `---\nSource: ${sourceStr} | ${formatToIST(projectResult.fetchedAt)}`;
       return output;
     }
