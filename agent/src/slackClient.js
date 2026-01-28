@@ -10,17 +10,31 @@ class SlackClient {
 
   /**
    * Make a Slack API request
+   * @param {string} method - Slack API method
+   * @param {object} params - Request parameters
+   * @param {object} options - { useForm: boolean } - use form-urlencoded instead of JSON
    */
-  async api(method, params = {}) {
+  async api(method, params = {}, options = {}) {
     const url = `${this.baseUrl}/${method}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${this.botToken}`,
-        "Content-Type": "application/json; charset=utf-8",
-      },
-      body: JSON.stringify(params),
-    });
+
+    let headers = { "Authorization": `Bearer ${this.botToken}` };
+    let body;
+
+    if (options.useForm) {
+      // Use form-urlencoded (required for some endpoints like conversations.replies)
+      headers["Content-Type"] = "application/x-www-form-urlencoded";
+      const formParams = new URLSearchParams();
+      for (const [key, value] of Object.entries(params)) {
+        formParams.append(key, String(value));
+      }
+      body = formParams.toString();
+    } else {
+      // Use JSON (default)
+      headers["Content-Type"] = "application/json; charset=utf-8";
+      body = JSON.stringify(params);
+    }
+
+    const res = await fetch(url, { method: "POST", headers, body });
 
     const json = await res.json().catch(() => ({}));
     if (!json.ok) {
@@ -137,7 +151,8 @@ class SlackClient {
     if (options.cursor) params.cursor = options.cursor;
 
     try {
-      const result = await this.api("conversations.replies", params);
+      // conversations.replies requires form-urlencoded format
+      const result = await this.api("conversations.replies", params, { useForm: true });
       return {
         messages: result.messages || [],
         hasMore: result.has_more || false,
