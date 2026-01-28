@@ -2287,7 +2287,7 @@ async function answer(question, snapshot, options = {}) {
 
       // Show Key Discussions (numbered insights)
       if (deepDive.keyDiscussions) {
-        output += `### 💬 Key Discussions from Slack\n\n${deepDive.keyDiscussions}\n\n`;
+        output += `### 💬 Key Discussions\n\n${deepDive.keyDiscussions}\n\n`;
       } else if (commentsResult?.success && commentsResult.commentCount > 0) {
         // Fallback to basic comments if no discussions generated
         output += `### 💬 Recent Activity (${commentsResult.commentCount} comments)\n`;
