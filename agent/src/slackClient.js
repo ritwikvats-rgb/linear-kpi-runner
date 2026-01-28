@@ -112,7 +112,7 @@ class SlackClient {
   async getAllMessages(channelId, options = {}) {
     const allMessages = [];
     let cursor = null;
-    const maxMessages = options.maxMessages || 500;
+    const maxMessages = options.maxMessages || 100000; // Essentially unlimited
 
     do {
       const result = await this.getMessages(channelId, {

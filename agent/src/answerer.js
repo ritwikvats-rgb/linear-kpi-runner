@@ -965,7 +965,7 @@ function getHealthStatus(score) {
  * Includes both Linear comments AND Slack messages for projects with channel IDs
  */
 async function fetchPodCommentsSummary(podName, projects) {
-  const activeProjects = projects.filter(p => p.normalizedState === "in_flight").slice(0, 5);
+  const activeProjects = projects.filter(p => p.normalizedState === "in_flight"); // No limit - fetch all active projects
   if (activeProjects.length === 0) return null;
 
   const allComments = [];
@@ -1003,7 +1003,7 @@ async function fetchPodCommentsSummary(podName, projects) {
       if (commentsResult.success && commentsResult.comments.length > 0) {
         allComments.push({
           project: project.name,
-          comments: commentsResult.comments.slice(0, 5),
+          comments: commentsResult.comments, // No limit - fetch all comments
         });
       }
     } catch (e) {
@@ -1019,7 +1019,6 @@ async function fetchPodCommentsSummary(podName, projects) {
           // Get active issues with relevant metadata (exclude completed/canceled)
           const relevantIssues = issues
             .filter(i => i.state?.type !== "completed" && i.state?.type !== "canceled")
-            .slice(0, 20)
             .map(i => ({
               identifier: i.identifier,
               title: i.title,
@@ -1060,8 +1059,8 @@ async function fetchPodCommentsSummary(podName, projects) {
 
         const messages = await slackClient.getMessagesWithThreads(channelId, {
           oldest,
-          maxMessages: 10000,  // Essentially unlimited - fetch all messages
           includeThreads: true
+          // No maxMessages limit - fetch ALL messages and threads
         });
 
         if (messages && messages.length > 0) {
@@ -1202,7 +1201,7 @@ async function fetchPodCommentsSummary(podName, projects) {
         return t.includes("qa") || t.includes("design") || t.includes("prd") ||
                t.includes("dev") || t.includes("spec") || t.includes("review") ||
                t.includes("implementation") || t.includes("pat");
-      }).slice(0, 8);
+      }); // No limit - include all key issues
 
       if (keyIssues.length > 0) {
         combinedText += `\n### ${shortName} - Key Assignments\n`;
