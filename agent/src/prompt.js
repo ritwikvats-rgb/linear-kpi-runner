@@ -53,6 +53,7 @@ Rules:
 6) Flag any urgency, blockers, or dependencies prominently
 7) If Slack confirms something (PRD shared, design approved), note it
 8) If no meaningful content, say "No significant updates in recent comments."
+9) NEVER include raw user IDs like U08CTADBLTX or <@U123ABC> in output - use names or "someone" instead
 
 Output format:
 - Key updates with clear ownership (who is doing what)

@@ -1077,22 +1077,44 @@ async function fetchPodCommentsSummary(podName, projects) {
 
   if (allComments.length === 0 && allSlackMessages.length === 0) return null;
 
+  // Helper function to clean Slack message text
+  // Replaces <@USER_ID> mentions with resolved names or "someone"
+  function cleanSlackText(text, userMap) {
+    if (!text) return text;
+    // Replace <@USER_ID> patterns
+    return text.replace(/<@([A-Z0-9]+)>/g, (match, userId) => {
+      const name = userMap[userId];
+      if (name && name !== userId) {
+        return name;
+      }
+      // If unresolved, use generic term instead of raw ID
+      return "someone";
+    });
+  }
+
   // Resolve Slack user IDs to real names if we have Slack data
   let slackUserMap = {};
   if (allSlackMessages.length > 0 && slackClient) {
     try {
-      // Collect all unique user IDs from Slack messages
-      const allUserIds = [];
+      // Collect all unique user IDs from Slack messages (both authors and @mentions)
+      const allUserIds = new Set();
       for (const { messages } of allSlackMessages) {
         for (const m of messages) {
+          // Add message author
           if (m.user && m.user !== "Unknown") {
-            allUserIds.push(m.user);
+            allUserIds.add(m.user);
+          }
+          // Extract @mentions from message text
+          const mentions = m.text?.match(/<@([A-Z0-9]+)>/g) || [];
+          for (const mention of mentions) {
+            const userId = mention.replace(/<@|>/g, "");
+            allUserIds.add(userId);
           }
         }
       }
       // Resolve user IDs to names (with rate limiting)
-      if (allUserIds.length > 0) {
-        slackUserMap = await slackClient.resolveUserNames(allUserIds);
+      if (allUserIds.size > 0) {
+        slackUserMap = await slackClient.resolveUserNames([...allUserIds]);
       }
     } catch (e) {
       console.warn("Failed to resolve Slack user names:", e.message);
@@ -1122,10 +1144,15 @@ async function fetchPodCommentsSummary(podName, projects) {
       const shortName = project.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
       combinedText += `\n### ${shortName} (Slack)\n`;
       for (const m of messages) {
-        // Use resolved name if available, otherwise use ID
-        const userName = slackUserMap[m.user] || m.user || "Unknown";
-        const userPrefix = userName !== "Unknown" ? `${userName}: ` : "";
-        combinedText += `- ${userPrefix}${m.text}\n`;
+        // Use resolved name if available, otherwise use generic term
+        let userName = slackUserMap[m.user] || "Someone";
+        // If still looks like a user ID (starts with U and is alphanumeric), use generic
+        if (userName.match(/^U[A-Z0-9]+$/)) {
+          userName = "Someone";
+        }
+        // Clean message text - replace <@USER_ID> mentions with resolved names
+        const cleanedText = cleanSlackText(m.text, slackUserMap);
+        combinedText += `- ${userName}: ${cleanedText}\n`;
       }
     }
   }
@@ -1156,10 +1183,11 @@ Rules:
 - NO markdown formatting (no **, ##, etc.)
 - Keep each project summary to 1-2 sentences
 - Focus on: current status, dependencies (who waits for whom), blockers, progress
-- Be precise about WHO is doing WHAT - identify roles clearly
+- Be precise about WHO is doing WHAT - use names clearly
 - When someone is blocked/waiting, state WHO provides WHAT to WHOM
 - Combine insights from both Linear and Slack if available
 - If Slack confirms something (PRD approved, designs shared), mention it
+- NEVER include raw IDs like U08CTADBLTX or <@U123ABC> in output - use names or "someone" instead
 
 Example output format:
 Improved product guidance: Awaiting final designs from Sahil; Sahana to start tech spec and dev after designs received. Slack confirms PRD + Figma shared, scope limited to fts-console.
