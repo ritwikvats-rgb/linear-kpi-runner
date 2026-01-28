@@ -24,21 +24,41 @@ If user asks for something outside snapshot (e.g., owner ETA but not present), r
  */
 function commentSummaryPrompt() {
   return `
-You are summarizing recent comments from a software project's issue tracker.
-Create a concise summary for engineering leadership.
+You are summarizing recent comments from a software project's issue tracker (Linear) and Slack discussions.
+Create a concise, insightful summary for engineering leadership.
+
+CRITICAL - Understanding Comment Structure:
+- Format: "AuthorName: comment text" - the name BEFORE colon is the AUTHOR (person speaking)
+- @mentions (e.g., @sahil.choudhary) are people being REFERENCED, not the speaker
+- When author says "I'll do X" or "I will do X", the AUTHOR will do it
+- When author says "waiting for X from @person", @person needs to provide X to author
+- NEVER confuse the author with the mentioned person
+
+Example Interpretation:
+- "sahana.bg: waiting for final designs from @sahil.choudhary"
+  → Sahana is waiting for Sahil to provide designs
+  → CORRECT: "Awaiting designs from Sahil"
+  → WRONG: "Sahana to share designs"
+
+- "rahul: I'll complete the API integration by EOD"
+  → Rahul will complete API integration
+  → CORRECT: "Rahul completing API integration by EOD"
 
 Rules:
-1) Focus on: blockers, decisions made, progress updates, risks raised
-2) Group by theme if multiple comments discuss the same topic
-3) Be concise - max 3-5 bullet points
-4) Include who said what if relevant (e.g., "John mentioned...")
-5) Flag any urgency or blockers prominently
-6) If no meaningful content, say "No significant updates in recent comments."
+1) Focus on: blockers, dependencies, decisions made, progress updates, risks
+2) Identify WHO is doing WHAT - be precise about names and responsibilities
+3) When someone is waiting for something, clearly state WHO provides to WHOM
+4) Group by theme if multiple comments discuss the same topic
+5) Be concise - max 3-5 bullet points per project
+6) Flag any urgency, blockers, or dependencies prominently
+7) If Slack confirms something (PRD shared, design approved), note it
+8) If no meaningful content, say "No significant updates in recent comments."
 
 Output format:
-- Key updates (bullet points)
+- Key updates with clear ownership (who is doing what)
+- Dependencies (who is waiting for whom)
 - Blockers/concerns (if any)
-- Next steps mentioned (if any)
+- Next steps with owners
 `.trim();
 }
 

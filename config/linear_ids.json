@@ -33,7 +33,7 @@
         {
           "id": "b22eba82-8427-4804-a759-810e3494ae9e",
           "name": "Q1 2026 : ESLint Enhancement",
-          "state": "backlog"
+          "state": "completed"
         },
         {
           "id": "d4f37e49-d25d-47e4-8bd7-e6e4f1d4101e",
@@ -88,7 +88,7 @@
         {
           "id": "37429829-677c-4305-9266-389c7587747d",
           "name": "Q1 2026 : Dynamic Workflows V1",
-          "state": "backlog"
+          "state": "started"
         },
         {
           "id": "dc499baf-0d70-4b55-b893-e43f9af18a6b",
@@ -152,7 +152,7 @@
         {
           "id": "99ace9b1-b90e-482d-8e08-c529520f91ed",
           "name": "Q1 26 - Den enhancements",
-          "state": "backlog"
+          "state": "started"
         },
         {
           "id": "75f6c5c8-7a14-4968-8a33-8fe1af80462b",
@@ -172,12 +172,12 @@
         {
           "id": "820ff9c8-9ed6-41c3-abf0-6c51894a74a9",
           "name": "Q1 26 - Contributor Portal",
-          "state": "backlog"
+          "state": "started"
         },
         {
           "id": "f66dae32-c82a-4119-9671-4ab578a2405f",
           "name": "Q1 26 - Auto-Ingest High Severity Flags tasks from Sisense",
-          "state": "backlog"
+          "state": "started"
         },
         {
           "id": "5496328e-dc63-46fe-b290-bfa45238cdd4",
@@ -187,7 +187,7 @@
         {
           "id": "d719b060-6e65-46b3-bd68-1c0f914ae2b7",
           "name": "Q1 26 - Rater Assitant V2",
-          "state": "backlog"
+          "state": "started"
         },
         {
           "id": "d309301e-6a0e-4f7d-a9e3-b5a34ccaf3f6",
@@ -197,12 +197,12 @@
         {
           "id": "b489159f-ff78-46ea-980f-467623c8f95c",
           "name": "Q1 26 - Flexible schema builder for Projects",
-          "state": "backlog"
+          "state": "started"
         },
         {
           "id": "b0eada13-2e03-4f96-9064-094f9c3145c7",
           "name": "Q1 26 - Workflow orchestrator",
-          "state": "backlog"
+          "state": "started"
         }
       ]
     },
@@ -212,13 +212,43 @@
       "initiativeId": "c47b5ed9-cb15-475f-ba37-edb6691dd334",
       "projects": [
         {
+          "id": "20600789-7028-4bee-a093-ff4dd244e8e2",
+          "name": "2026 Q1 - Lifecycle Stage Fix",
+          "state": "backlog"
+        },
+        {
+          "id": "dbf79f7a-61d0-4b2a-9f67-644ee915be03",
+          "name": "2026 Q1 - Exam UI Changes",
+          "state": "backlog"
+        },
+        {
+          "id": "fbd1c302-51f0-42f0-82a3-d7d7a7835a48",
+          "name": "2026 Q1 - Move candidates between reqs",
+          "state": "backlog"
+        },
+        {
+          "id": "77e9642a-9040-4743-9408-bb026abd76c2",
+          "name": "2026 Q1 - Sensitive Data Handling",
+          "state": "backlog"
+        },
+        {
+          "id": "d2c0c2d9-8eba-4840-842e-a7ef9de9bf77",
+          "name": "2026 Q1 - Program Analytics Reporting",
+          "state": "backlog"
+        },
+        {
+          "id": "2713d128-1f94-48b1-9c6a-8b8677050e70",
+          "name": "2026 Q1 - API Optimizations",
+          "state": "backlog"
+        },
+        {
           "id": "a89eadf4-6597-48c3-9f27-6c15d87b2fa4",
-          "name": "[Talent Studio] Observability",
+          "name": "2026 Q1 - Unified Observability",
           "state": "started"
         },
         {
           "id": "d8e33353-85e6-4916-bef7-e2df06bd0949",
-          "name": "Provisioning",
+          "name": "2026 Q1 - Provisioning",
           "state": "backlog"
         },
         {
@@ -227,13 +257,18 @@
           "state": "backlog"
         },
         {
-          "id": "fdc5d886-1dca-4e6d-81ea-eae881a3ee3d",
-          "name": "Solutioning for Candidate Recommendation System",
-          "state": "backlog"
+          "id": "b88d35a9-ea77-4ff6-8c2c-1890fdabb600",
+          "name": "2026 Q1 - Automated fraud detection V2",
+          "state": "started"
         },
         {
-          "id": "b88d35a9-ea77-4ff6-8c2c-1890fdabb600",
-          "name": "Automated fraud detection V2",
+          "id": "5ebebd0c-db5f-4144-81fc-1acc009b3ffd",
+          "name": "2026 Q1 - Intelligent Qualification Agent",
+          "state": "started"
+        },
+        {
+          "id": "11dae4af-8425-4760-86da-50bf8ebef3f6",
+          "name": "2026 Q1 - AI Interviewer",
           "state": "started"
         }
       ]
@@ -281,7 +316,7 @@
         {
           "id": "d6f05ff5-8649-42bc-b0b6-a9ce7d49fd1c",
           "name": "Domain Unification - Q1",
-          "state": "backlog"
+          "state": "planned"
         },
         {
           "id": "299d0df8-cafa-4f8b-b0ab-f06a4530dcac",
@@ -314,7 +349,58 @@
       "teamId": "8a22c37c-7e42-41ac-903b-fb262a0528e5",
       "initiativeName": "Q1 2026 - GR Roadmap",
       "initiativeId": "56a4821d-e86d-4d3e-b417-fcc5405d7e0d",
-      "projects": []
+      "projects": [
+        {
+          "id": "482adec8-6411-4f40-99c6-21c6d82c6b03",
+          "name": "2026 Q1 - Application Source on Req",
+          "state": "backlog"
+        },
+        {
+          "id": "963ea5a0-0ccb-4abe-ae76-a92c85f4acb7",
+          "name": "2026 Q1 - Investigate and Rectify Source Attribution",
+          "state": "backlog"
+        },
+        {
+          "id": "b8f3e4db-8a0e-4351-918f-a621a6f5ad8a",
+          "name": "2026 Q1 - Onboarding Scale up",
+          "state": "backlog"
+        },
+        {
+          "id": "dc40b145-e0af-4740-8aa8-89c4a8633bcf",
+          "name": "2026 Q1 - Clear Resume Backlog",
+          "state": "backlog"
+        },
+        {
+          "id": "9525c7aa-6987-4f28-a8c6-6a7cc5eb279d",
+          "name": "2026 Q1 - Debug lifecycle_stage Issue",
+          "state": "backlog"
+        },
+        {
+          "id": "0d0405cf-e781-4afe-9035-42335c896dc9",
+          "name": "2026 Q1 - South Korea Banner Scale up",
+          "state": "backlog"
+        },
+        {
+          "id": "99385172-d1a6-4faa-915a-314a58c38cc7",
+          "name": "Onboarding Enhancements and Bug Fixes",
+          "state": "backlog"
+        },
+        {
+          "id": "fdc5d886-1dca-4e6d-81ea-eae881a3ee3d",
+          "name": "2026 Q1 - Solutioning for Candidate Recommendation System",
+          "state": "backlog"
+        },
+        {
+          "id": "f8156b36-0498-40d2-8fc6-0440c8f3879c",
+          "name": "2026 Q1 - FTS Data on EE",
+          "state": "backlog"
+        },
+        {
+          "id": "7436f6ed-e2e5-4cce-b897-1d10ab15f9d1",
+          "name": "2026 Q1 - TS Data on EE",
+          "state": "started"
+        }
+      ]
     }
   }
 }

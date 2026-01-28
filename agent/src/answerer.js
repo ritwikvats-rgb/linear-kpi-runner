@@ -1077,6 +1077,28 @@ async function fetchPodCommentsSummary(podName, projects) {
 
   if (allComments.length === 0 && allSlackMessages.length === 0) return null;
 
+  // Resolve Slack user IDs to real names if we have Slack data
+  let slackUserMap = {};
+  if (allSlackMessages.length > 0 && slackClient) {
+    try {
+      // Collect all unique user IDs from Slack messages
+      const allUserIds = [];
+      for (const { messages } of allSlackMessages) {
+        for (const m of messages) {
+          if (m.user && m.user !== "Unknown") {
+            allUserIds.push(m.user);
+          }
+        }
+      }
+      // Resolve user IDs to names (with rate limiting)
+      if (allUserIds.length > 0) {
+        slackUserMap = await slackClient.resolveUserNames(allUserIds);
+      }
+    } catch (e) {
+      console.warn("Failed to resolve Slack user names:", e.message);
+    }
+  }
+
   // Build combined text for summarization
   let combinedText = "";
   const sources = [];
@@ -1100,7 +1122,10 @@ async function fetchPodCommentsSummary(podName, projects) {
       const shortName = project.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
       combinedText += `\n### ${shortName} (Slack)\n`;
       for (const m of messages) {
-        combinedText += `- ${m.text}\n`;
+        // Use resolved name if available, otherwise use ID
+        const userName = slackUserMap[m.user] || m.user || "Unknown";
+        const userPrefix = userName !== "Unknown" ? `${userName}: ` : "";
+        combinedText += `- ${userPrefix}${m.text}\n`;
       }
     }
   }
@@ -1110,20 +1135,36 @@ async function fetchPodCommentsSummary(podName, projects) {
     const messages = [
       {
         role: "system",
-        content: `You are a project status summarizer. Summarize recent discussions from Linear comments AND Slack messages PROJECT-WISE.
+        content: `You are a project status summarizer for engineering leadership. Summarize recent discussions from Linear comments AND Slack messages PROJECT-WISE.
+
+CRITICAL - Understanding Comment Structure:
+- Format: "AuthorName: comment text" - the name BEFORE colon is the AUTHOR (person speaking)
+- @mentions (e.g., @sahil.choudhary) are people being REFERENCED, not the speaker
+- When author says "I'll do X", the AUTHOR will do it, not someone else
+- When author says "waiting for X from @person", @person needs to provide X to author
+- NEVER confuse the author with the mentioned person
+
+Example Interpretation:
+- "sahana.bg: as discussed with @sahil.choudhary, I'll share the updated designs by EOD"
+  → Sahana wrote this. She will share designs after coordinating with Sahil.
+  → If later she says "awaiting final design from @sahil.choudhary", Sahil provides to Sahana
+  → CORRECT: "Awaiting final designs from Sahil; Sahana to proceed with tech spec after"
+  → WRONG: "Sahana to share designs" (misleading without context)
 
 Rules:
-- Output each project on its own line with format: "ProjectName: summary of that project"
+- Output each project on its own line with format: "ProjectName: summary"
 - NO markdown formatting (no **, ##, etc.)
 - Keep each project summary to 1-2 sentences
-- Focus on: current work, blockers, and progress
-- Be factual and direct
+- Focus on: current status, dependencies (who waits for whom), blockers, progress
+- Be precise about WHO is doing WHAT - identify roles clearly
+- When someone is blocked/waiting, state WHO provides WHAT to WHOM
 - Combine insights from both Linear and Slack if available
+- If Slack confirms something (PRD approved, designs shared), mention it
 
 Example output format:
-FTS Evals: Multiple engineers working on test cases, one PR in review with pending Sonar fixes.
-Data-Driven Cohorts: UI work ongoing with Users page targeted for completion today. Slack discussions indicate alignment on API contracts.
-Dynamic Workflows: Tech spec largely complete, initial boilerplate work started.`
+Improved product guidance: Awaiting final designs from Sahil; Sahana to start tech spec and dev after designs received. Slack confirms PRD + Figma shared, scope limited to fts-console.
+Data-Driven Cohorts: UI work ongoing, Users page targeted for completion today. API contracts aligned per Slack discussion.
+Dynamic Workflows: Tech spec 80% complete by Rahul, initial boilerplate started by Priya.`
       },
       { role: "user", content: `Recent discussions from ${podName} pod:\n${combinedText}` },
     ];
