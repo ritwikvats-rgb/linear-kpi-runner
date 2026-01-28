@@ -1158,37 +1158,10 @@ async function fetchPodCommentsSummary(podName, projects) {
   let combinedText = "";
   const sources = [];
 
-  // FIRST: Add Linear issue metadata (SOURCE OF TRUTH for assignments and status)
-  if (allIssueData.length > 0) {
-    sources.push("Linear Issues");
-    combinedText += "\n## LINEAR ISSUE STATUS (SOURCE OF TRUTH)\n";
-    combinedText += "This is the ACTUAL state in Linear. Use this to verify/override any discussions.\n";
-    for (const { project, issues } of allIssueData) {
-      const shortName = project.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
-      combinedText += `\n### ${shortName} - Current Issues\n`;
-      for (const issue of issues) {
-        combinedText += `- [${issue.identifier}] "${issue.title}" | Status: ${issue.status} | Assignee: ${issue.assignee}`;
-        if (issue.labels.length > 0) {
-          combinedText += ` | Labels: ${issue.labels.join(", ")}`;
-        }
-        combinedText += "\n";
-        // Include description snippet for context (especially for QA, PRD, etc.)
-        if (issue.description && (
-          issue.title.toLowerCase().includes("qa") ||
-          issue.title.toLowerCase().includes("prd") ||
-          issue.title.toLowerCase().includes("design") ||
-          issue.title.toLowerCase().includes("spec")
-        )) {
-          const descSnippet = issue.description.substring(0, 200).replace(/\n/g, " ");
-          combinedText += `  Description: ${descSnippet}...\n`;
-        }
-      }
-    }
-  }
-
+  // FIRST: Add the actual discussions (this is what we want to summarize)
   if (allComments.length > 0) {
-    if (!sources.includes("Linear Issues")) sources.push("Linear");
-    combinedText += "\n## LINEAR COMMENTS (Discussion context)\n";
+    sources.push("Linear");
+    combinedText += "\n## LINEAR COMMENTS (Main discussion content)\n";
     for (const { project, comments } of allComments) {
       const shortName = project.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
       combinedText += `\n### ${shortName}\n`;
@@ -1200,7 +1173,7 @@ async function fetchPodCommentsSummary(podName, projects) {
 
   if (allSlackMessages.length > 0) {
     sources.push("Slack");
-    combinedText += "\n## SLACK DISCUSSIONS (Discussion context)\n";
+    combinedText += "\n## SLACK DISCUSSIONS (Main discussion content)\n";
     for (const { project, messages } of allSlackMessages) {
       const shortName = project.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
       combinedText += `\n### ${shortName} (Slack)\n`;
@@ -1218,52 +1191,77 @@ async function fetchPodCommentsSummary(podName, projects) {
     }
   }
 
+  // Add issue data as REFERENCE ONLY (for fact-checking, not main content)
+  if (allIssueData.length > 0) {
+    combinedText += "\n## REFERENCE: LINEAR ISSUE ASSIGNMENTS (Use only to verify facts, NOT as main content)\n";
+    for (const { project, issues } of allIssueData) {
+      const shortName = project.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "");
+      // Only include key issues (QA, Design, PRD, Dev related) as quick reference
+      const keyIssues = issues.filter(i => {
+        const t = i.title.toLowerCase();
+        return t.includes("qa") || t.includes("design") || t.includes("prd") ||
+               t.includes("dev") || t.includes("spec") || t.includes("review") ||
+               t.includes("implementation") || t.includes("pat");
+      }).slice(0, 8);
+
+      if (keyIssues.length > 0) {
+        combinedText += `\n### ${shortName} - Key Assignments\n`;
+        for (const issue of keyIssues) {
+          combinedText += `- ${issue.title}: ${issue.status} (${issue.assignee})\n`;
+        }
+      }
+    }
+  }
+
   // Summarize with LLM
   try {
     const messages = [
       {
         role: "system",
-        content: `You are an intelligent project status summarizer for engineering leadership. You have THREE data sources with different priorities:
+        content: `You are a discussion summarizer for engineering leadership. Your job is to summarize WHAT PEOPLE ARE TALKING ABOUT in Slack and Linear comments.
 
-## DATA PRIORITY (MOST IMPORTANT)
-1. **LINEAR ISSUE STATUS = SOURCE OF TRUTH** - Actual assignments, statuses in Linear are FACTS
-2. **LINEAR COMMENTS** - Discussion context, updates, decisions
-3. **SLACK DISCUSSIONS** - Informal discussion, may be outdated or speculative
+## YOUR PRIMARY FOCUS: CONVERSATIONS & DISCUSSIONS
+Summarize the actual discussions:
+- What decisions are being made?
+- What blockers or issues are people discussing?
+- What progress updates are people sharing?
+- What questions or concerns are raised?
+- What dependencies are being coordinated?
 
-## CRITICAL: CROSS-REFERENCE AND VERIFY
-- If Slack says "need to confirm who owns QA" but Linear shows "QA issue assigned to Chinmaya" → Report: "QA assigned to Chinmaya"
-- If Slack says "waiting for designs" but Linear shows "Design issue: Done" → Report: "Designs completed"
-- If discussion mentions uncertainty but Linear has concrete assignment → USE LINEAR DATA
-- ALWAYS check Linear Issue Status before reporting something as "unknown" or "pending confirmation"
+## DO NOT just list ticket statuses!
+BAD output: "FE Dev is In Progress with Sagnik, BE Dev is In Progress with Prachi, QA is Todo with Chinmaya"
+This is useless - they can see ticket statuses in Linear already.
 
-## Understanding Comment Structure:
-- Format: "AuthorName: comment text" - name BEFORE colon is the AUTHOR
-- @mentions are people being REFERENCED, not the speaker
-- NEVER confuse author with mentioned person
+GOOD output: "Team discussing rubric parameter changes to avoid duplicate follow-ups; Harshada observing over more test rounds before closing; Vaibhav investigating the save button issue reported by Sunny."
+This tells them what's actually happening in conversations.
 
-## SMART SUMMARIZATION RULES:
-1. Output each project on its own line: "ProjectName: summary"
-2. NO markdown formatting (no **, ##, etc.)
-3. Keep each summary to 1-2 sentences
-4. Lead with FACTS from Linear Issues, then add context from discussions
-5. For key phases (QA, Design, PRD, Dev), always mention:
-   - WHO is assigned (from Linear Issue Status)
-   - WHAT is the status (Todo, In Progress, Done)
-6. Only mention something as "unconfirmed" if Linear Issue Status also shows it unassigned
-7. NEVER include raw IDs like U08CTADBLTX or <@U123ABC>
+## USE LINEAR ISSUE DATA ONLY TO VERIFY
+- If Slack asks "who owns QA?" but Linear shows QA assigned to Chinmaya → Don't repeat the question, just know QA is covered
+- Use issue data to fact-check discussions, NOT as the main content
+- Only mention assignments if they're RELEVANT to the discussion
 
-## Example Smart Cross-Reference:
+## Understanding Comments:
+- "AuthorName: text" - name BEFORE colon is the speaker
+- @mentions are people being referenced, not the speaker
+
+## OUTPUT RULES:
+1. One line per project: "ProjectName: discussion summary"
+2. NO markdown (no **, ##, etc.)
+3. 1-2 sentences focusing on WHAT PEOPLE ARE DISCUSSING
+4. Include: decisions, blockers, progress updates, concerns, action items
+5. Skip projects with no meaningful discussion
+6. NEVER include raw IDs like U08CTADBLTX
+
+## Example:
 Input:
-- Linear Issue: [FTS-3229] "QA" | Status: Todo | Assignee: chinmaya.nayak
-- Slack: "need to confirm who will own QA"
+- Slack: "Harshith proposes making rubric parameters mutually exclusive; Atul tested passing prior questions but notes non-exclusive parameters still cause duplicate follow-ups"
+- Linear Issue: QA assigned to Chinmaya (Todo)
 
-Output: "QA assigned to Chinmaya (Todo status), testing requirements documented in Linear."
-NOT: "Need to confirm who will own QA" (WRONG - this ignores Linear facts)
+Output: "AI Interviewer: Harshith proposes making rubric parameters mutually exclusive while tracking previously discussed topics to avoid repeated follow-ups; Atul tested passing prior questions but notes non-exclusive parameters still cause duplicate follow-ups."
 
-## Output Format:
-ProjectName: Status summary with assignee facts from Linear, supplemented by discussion context.`
+NOT: "AI Interviewer: QA is Todo with Chinmaya, FE Dev is In Progress with Atul..." (WRONG - this is just ticket status)`
       },
-      { role: "user", content: `Recent data from ${podName} pod:\n${combinedText}` },
+      { role: "user", content: `Recent discussions from ${podName} pod:\n${combinedText}` },
     ];
     const summary = await fuelixChat({ messages });
 
