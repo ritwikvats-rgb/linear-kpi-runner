@@ -1103,31 +1103,57 @@ async function generateDeepDiveDiscussions(project) {
 
         const humanMessages = messages.filter(m => !m.bot_id && m.type === "message" && m.text);
 
-        // Resolve user names
-        const userIds = [...new Set(humanMessages.map(m => m.user).filter(Boolean))];
+        // Collect ALL user IDs - from authors AND @mentions in text
+        const allUserIds = new Set();
+        for (const m of humanMessages) {
+          if (m.user) allUserIds.add(m.user);
+          // Extract @mentions from text
+          const mentions = m.text.match(/<@([A-Z0-9]+)>/g) || [];
+          for (const mention of mentions) {
+            allUserIds.add(mention.replace(/<@|>/g, ""));
+          }
+          // Also check thread replies
+          if (m.threadReplies) {
+            for (const r of m.threadReplies) {
+              if (r.user) allUserIds.add(r.user);
+              const rMentions = (r.text || "").match(/<@([A-Z0-9]+)>/g) || [];
+              for (const mention of rMentions) {
+                allUserIds.add(mention.replace(/<@|>/g, ""));
+              }
+            }
+          }
+        }
+
+        // Resolve ALL user IDs to names
         let userMap = {};
-        if (userIds.length > 0) {
+        if (allUserIds.size > 0) {
           try {
-            userMap = await slackClient.resolveUserNames(userIds);
+            userMap = await slackClient.resolveUserNames([...allUserIds]);
           } catch (e) {}
         }
 
-        for (const m of humanMessages) {
-          const userName = userMap[m.user] || "Someone";
-          let text = m.text.replace(/<@([A-Z0-9]+)>/g, (match, userId) => {
-            return userMap[userId] || "someone";
+        // Helper to clean text - replace all user IDs with names
+        const cleanText = (text) => {
+          if (!text) return text;
+          return text.replace(/<@([A-Z0-9]+)>/g, (match, userId) => {
+            const name = userMap[userId];
+            if (name && !name.match(/^U[A-Z0-9]+$/)) return name;
+            return "someone";
           });
-          slackMessages.push({ author: userName, text });
+        };
+
+        for (const m of humanMessages) {
+          let userName = userMap[m.user] || "Someone";
+          if (userName.match(/^U[A-Z0-9]+$/)) userName = "Someone";
+          slackMessages.push({ author: userName, text: cleanText(m.text) });
 
           // Include thread replies
           if (m.threadReplies) {
             for (const r of m.threadReplies) {
               if (!r.bot_id && r.text) {
-                const rName = userMap[r.user] || "Someone";
-                let rText = r.text.replace(/<@([A-Z0-9]+)>/g, (match, userId) => {
-                  return userMap[userId] || "someone";
-                });
-                slackMessages.push({ author: rName, text: rText, isReply: true });
+                let rName = userMap[r.user] || "Someone";
+                if (rName.match(/^U[A-Z0-9]+$/)) rName = "Someone";
+                slackMessages.push({ author: rName, text: cleanText(r.text), isReply: true });
               }
             }
           }
@@ -1193,7 +1219,9 @@ Return 5-10 numbered insights. Each insight should:
 - Keep each insight to 1-2 sentences
 - Focus on DISCUSSIONS, not ticket statuses
 - Include WHO is doing WHAT when mentioned
-- Skip generic/trivial messages`
+- Skip generic/trivial messages
+- NEVER include raw user IDs like U06H90RUXPT or U07B0CNGJR0 - use "someone" if name unknown
+- NEVER include <@U123ABC> format - always use actual names or "someone"`
       },
       { role: "user", content: `Extract key discussion points from this project:\n\n${context}` },
     ];
