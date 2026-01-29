@@ -531,47 +531,54 @@ ${projectList}
 3. Return a JSON object with the intent
 
 ## INTENT TYPES
-- "pod_info" - User wants info about a specific pod (e.g., "whats up with fts", "how is talent studio doing")
-- "project_info" - User wants info about a specific project (e.g., "AI interviewer status", "deep dive data cohorts")
+- "pod_info" - User wants GENERAL overview/status of a pod (e.g., "whats up with fts", "how is talent studio doing", "fts status")
+- "project_info" - User wants GENERAL overview of a project (e.g., "AI interviewer status", "deep dive data cohorts", "show me AI interviewer")
+- "project_question" - User is asking a SPECIFIC QUESTION about a project (e.g., "any blockers in AI interviewer?", "what are the risks for Data Cohorts?", "tell me blockers in AI interviewer for tomorrow demo"). Use this when the user asks about blockers, risks, issues, concerns, deadlines, or specific aspects of a project.
 - "all_pods" - User wants overview of all pods (e.g., "how are all teams doing", "overall status")
-- "conversation" - User is asking an open-ended question, making conversation, or asking for insights/highlights/summary that doesn't target a specific pod or project (e.g., "anything to highlight?", "what should I know?", "any risks?", "hello", "thanks", "what's important today?")
+- "conversation" - User is making general conversation, greetings, or asking questions NOT about a specific pod/project (e.g., "hello", "thanks", "anything to highlight across all teams?", "what should I know?")
 - "unknown" - ONLY use this if the input is completely gibberish or unintelligible
+
+IMPORTANT: If the user asks a QUESTION (blockers? risks? issues? concerns? what about...? tell me about...? can you tell me...?) about a specific project, use "project_question" NOT "project_info".
 
 ## OUTPUT FORMAT (JSON only, no explanation)
 {
-  "intent": "pod_info" | "project_info" | "all_pods" | "conversation" | "unknown",
+  "intent": "pod_info" | "project_info" | "project_question" | "all_pods" | "conversation" | "unknown",
   "entity": "corrected pod or project name" | null,
+  "question_focus": "blockers" | "risks" | "timeline" | "issues" | "general" | null,
   "confidence": "high" | "medium" | "low",
   "corrected_query": "what user probably meant"
 }
 
 ## EXAMPLES
 Input: "whats going on AI Interviwer"
-Output: {"intent": "project_info", "entity": "AI Interviewer", "confidence": "high", "corrected_query": "What's going on with AI Interviewer project?"}
+Output: {"intent": "project_info", "entity": "AI Interviewer", "question_focus": null, "confidence": "high", "corrected_query": "What's going on with AI Interviewer project?"}
 
 Input: "fts stauts"
-Output: {"intent": "pod_info", "entity": "FTS", "confidence": "high", "corrected_query": "FTS status"}
-
-Input: "how is talnet studio"
-Output: {"intent": "pod_info", "entity": "Talent Studio", "confidence": "high", "corrected_query": "How is Talent Studio doing?"}
+Output: {"intent": "pod_info", "entity": "FTS", "question_focus": null, "confidence": "high", "corrected_query": "FTS status"}
 
 Input: "deep dive into data driven cohorts"
-Output: {"intent": "project_info", "entity": "Data-Driven Cohorts", "confidence": "high", "corrected_query": "Deep dive into Data-Driven Cohorts project"}
+Output: {"intent": "project_info", "entity": "Data-Driven Cohorts", "question_focus": null, "confidence": "high", "corrected_query": "Deep dive into Data-Driven Cohorts project"}
+
+Input: "can you tell me any blocker in tomorrow demo in AI interviewer project"
+Output: {"intent": "project_question", "entity": "AI Interviewer", "question_focus": "blockers", "confidence": "high", "corrected_query": "What are the blockers for AI Interviewer's tomorrow demo?"}
+
+Input: "any risks in data cohorts project?"
+Output: {"intent": "project_question", "entity": "Data-Driven Cohorts", "question_focus": "risks", "confidence": "high", "corrected_query": "What are the risks in Data-Driven Cohorts project?"}
+
+Input: "what issues does AI interviewer have?"
+Output: {"intent": "project_question", "entity": "AI Interviewer", "question_focus": "issues", "confidence": "high", "corrected_query": "What issues does AI Interviewer have?"}
+
+Input: "tell me about blockers for onboarding project"
+Output: {"intent": "project_question", "entity": "Onboarding", "question_focus": "blockers", "confidence": "high", "corrected_query": "What are the blockers for Onboarding project?"}
 
 Input: "anything else you want to highlight?"
-Output: {"intent": "conversation", "entity": null, "confidence": "high", "corrected_query": "What are the key highlights or important things to know?"}
-
-Input: "what should I be aware of?"
-Output: {"intent": "conversation", "entity": null, "confidence": "high", "corrected_query": "What are the important things to be aware of?"}
-
-Input: "any blockers or risks across teams?"
-Output: {"intent": "conversation", "entity": null, "confidence": "high", "corrected_query": "Are there any blockers or risks across all teams?"}
+Output: {"intent": "conversation", "entity": null, "question_focus": null, "confidence": "high", "corrected_query": "What are the key highlights?"}
 
 Input: "hello"
-Output: {"intent": "conversation", "entity": null, "confidence": "high", "corrected_query": "User greeting"}
+Output: {"intent": "conversation", "entity": null, "question_focus": null, "confidence": "high", "corrected_query": "User greeting"}
 
 Input: "thanks"
-Output: {"intent": "conversation", "entity": null, "confidence": "high", "corrected_query": "User expressing thanks"}`
+Output: {"intent": "conversation", "entity": null, "question_focus": null, "confidence": "high", "corrected_query": "User expressing thanks"}`
     },
     { role: "user", content: input }
   ];
@@ -744,6 +751,107 @@ ${contextData || "No live data currently loaded. You can ask about specific pods
     return response.trim();
   } catch (e) {
     return `I'm here to help! You can ask me about:\n- **Pod status**: "pod FTS" or "how is Talent Studio doing?"\n- **Project details**: "deep dive AI Interviewer"\n- **All pods overview**: "pods" or "show all teams"\n\nWhat would you like to know?`;
+  }
+}
+
+/**
+ * Handle specific questions about a project (blockers, risks, issues, etc.)
+ * Fetches project data and uses LLM to answer the specific question conversationally.
+ */
+async function handleProjectQuestion(question, projectName, questionFocus, snapshot) {
+  // Find the project across all pods
+  const podsResult = listPods();
+  let projectData = null;
+  let podName = null;
+  let blockers = [];
+  let activeIssues = [];
+
+  // Search all pods for the project
+  for (const pod of podsResult.pods) {
+    try {
+      const result = await getLiveProjects(pod.name);
+      if (result.success) {
+        const match = result.projects.find(p =>
+          p.name.toLowerCase().includes(projectName.toLowerCase()) ||
+          projectName.toLowerCase().includes(p.name.toLowerCase().replace(/^.*?-\s*/, ''))
+        );
+        if (match) {
+          projectData = match;
+          podName = pod.name;
+
+          // Get detailed project info with blockers
+          try {
+            const detail = await getLiveProject(pod.name, match.name);
+            if (detail.success) {
+              blockers = detail.blockerIssues || [];
+              activeIssues = detail.activeIssues || [];
+            }
+          } catch (e) {}
+          break;
+        }
+      }
+    } catch (e) {}
+  }
+
+  // Build context for LLM
+  let projectContext = "";
+  if (projectData) {
+    projectContext = `## Project: ${projectData.name}
+- Pod: ${podName}
+- State: ${projectData.normalizedState || projectData.state}
+- Lead: ${projectData.lead || "Not assigned"}
+- Target Date: ${projectData.targetDate || "Not set"}
+
+`;
+    if (blockers.length > 0) {
+      projectContext += `## Blockers (${blockers.length})\n`;
+      for (const b of blockers) {
+        projectContext += `- [${b.identifier}] ${b.title} (Assignee: ${b.assignee || "unassigned"}, Priority: ${b.priority || "none"})\n`;
+      }
+      projectContext += "\n";
+    } else {
+      projectContext += "## Blockers\nNo blockers found for this project.\n\n";
+    }
+
+    if (activeIssues.length > 0) {
+      projectContext += `## Active Issues (${activeIssues.length})\n`;
+      for (const issue of activeIssues.slice(0, 10)) {
+        const blockerTag = issue.isBlocker ? " [BLOCKER]" : "";
+        projectContext += `- [${issue.identifier}] ${issue.title}${blockerTag} (${issue.state || "unknown state"})\n`;
+      }
+    }
+  } else {
+    projectContext = `Could not find project "${projectName}" in any pod. Available pods: ${podsResult.pods.map(p => p.name).join(", ")}`;
+  }
+
+  // Build LLM prompt
+  const systemPromptText = `You are a helpful KPI Assistant. The user asked a specific question about a project. Answer their question directly and conversationally based on the project data provided.
+
+## GUIDELINES
+1. Answer the user's specific question directly - don't just dump all data
+2. If they ask about blockers, focus on blockers and explain what's blocking the project
+3. If they ask about risks, highlight any concerning issues
+4. Be conversational and helpful, like ChatGPT or Claude would be
+5. If there are no blockers/issues, say so clearly
+6. Keep the response concise but informative
+
+## PROJECT DATA
+${projectContext}`;
+
+  const messages = [
+    { role: "system", content: systemPromptText },
+    { role: "user", content: question }
+  ];
+
+  try {
+    const response = await fuelixChat({ messages, temperature: 0.7, timeout: 20000 });
+    return response.trim();
+  } catch (e) {
+    // Fallback to basic response
+    if (blockers.length > 0) {
+      return `**Blockers for ${projectData?.name || projectName}:**\n${blockers.map(b => `- ${b.title} (${b.assignee || "unassigned"})`).join("\n")}`;
+    }
+    return `No blockers found for ${projectData?.name || projectName}.`;
   }
 }
 
@@ -2518,6 +2626,16 @@ async function answer(question, snapshot, options = {}) {
         if (interpretation.intent === "project_info" && interpretation.entity) {
           // Route to project deep dive
           return answer(`project ${interpretation.entity}`, snapshot, options);
+        }
+
+        // Handle specific questions about a project (blockers, risks, etc.)
+        if (interpretation.intent === "project_question" && interpretation.entity) {
+          return await handleProjectQuestion(
+            question,
+            interpretation.entity,
+            interpretation.questionFocus || interpretation.question_focus,
+            snapshot
+          );
         }
 
         if (interpretation.intent === "all_pods") {
