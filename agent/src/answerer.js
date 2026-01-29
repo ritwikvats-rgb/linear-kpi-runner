@@ -756,7 +756,7 @@ ${contextData || "No live data currently loaded. You can ask about specific pods
 
 /**
  * Handle specific questions about a project (blockers, risks, issues, etc.)
- * Fetches project data and uses LLM to answer the specific question conversationally.
+ * Fetches project data from Linear + Slack and uses LLM to answer conversationally.
  */
 async function handleProjectQuestion(question, projectName, questionFocus, snapshot) {
   // Find the project across all pods
@@ -765,6 +765,8 @@ async function handleProjectQuestion(question, projectName, questionFocus, snaps
   let podName = null;
   let blockers = [];
   let activeIssues = [];
+  let slackContext = "";
+  let linearComments = [];
 
   // Search all pods for the project
   for (const pod of podsResult.pods) {
@@ -787,6 +789,22 @@ async function handleProjectQuestion(question, projectName, questionFocus, snaps
               activeIssues = detail.activeIssues || [];
             }
           } catch (e) {}
+
+          // Fetch Slack messages and Linear comments for richer context
+          try {
+            const deepDive = await generateDeepDiveDiscussions(match);
+            if (deepDive) {
+              if (deepDive.keyDiscussions) {
+                slackContext = deepDive.keyDiscussions;
+              }
+              if (deepDive.slackMessageCount > 0) {
+                slackContext += `\n(Based on ${deepDive.slackMessageCount} Slack messages)`;
+              }
+            }
+          } catch (e) {
+            // Continue without Slack context
+          }
+
           break;
         }
       }
@@ -810,15 +828,22 @@ async function handleProjectQuestion(question, projectName, questionFocus, snaps
       }
       projectContext += "\n";
     } else {
-      projectContext += "## Blockers\nNo blockers found for this project.\n\n";
+      projectContext += "## Blockers\nNo formal blockers logged in Linear.\n\n";
     }
 
     if (activeIssues.length > 0) {
       projectContext += `## Active Issues (${activeIssues.length})\n`;
-      for (const issue of activeIssues.slice(0, 10)) {
+      for (const issue of activeIssues.slice(0, 15)) {
         const blockerTag = issue.isBlocker ? " [BLOCKER]" : "";
-        projectContext += `- [${issue.identifier}] ${issue.title}${blockerTag} (${issue.state || "unknown state"})\n`;
+        const stateInfo = issue.state || "unknown state";
+        projectContext += `- [${issue.identifier}] ${issue.title}${blockerTag} (${stateInfo})\n`;
       }
+      projectContext += "\n";
+    }
+
+    // Add Slack/Linear discussions context
+    if (slackContext) {
+      projectContext += `## Recent Discussions (from Slack + Linear)\n${slackContext}\n`;
     }
   } else {
     projectContext = `Could not find project "${projectName}" in any pod. Available pods: ${podsResult.pods.map(p => p.name).join(", ")}`;
@@ -829,11 +854,13 @@ async function handleProjectQuestion(question, projectName, questionFocus, snaps
 
 ## GUIDELINES
 1. Answer the user's specific question directly - don't just dump all data
-2. If they ask about blockers, focus on blockers and explain what's blocking the project
-3. If they ask about risks, highlight any concerning issues
-4. Be conversational and helpful, like ChatGPT or Claude would be
-5. If there are no blockers/issues, say so clearly
-6. Keep the response concise but informative
+2. If they ask about blockers, focus on blockers AND any issues that could impact their concern (e.g., demo, deadline)
+3. If they ask about risks, highlight concerning issues from both Linear tickets AND Slack discussions
+4. Reference specific ticket IDs (like TS-1234) when relevant
+5. If Slack discussions mention concerns or problems, include those insights
+6. Be conversational and helpful, like ChatGPT or Claude would be
+7. If there are no formal blockers but there are active issues that could cause problems, mention those
+8. Keep the response concise but informative
 
 ## PROJECT DATA
 ${projectContext}`;
@@ -844,14 +871,17 @@ ${projectContext}`;
   ];
 
   try {
-    const response = await fuelixChat({ messages, temperature: 0.7, timeout: 20000 });
+    const response = await fuelixChat({ messages, temperature: 0.7, timeout: 25000 });
     return response.trim();
   } catch (e) {
     // Fallback to basic response
     if (blockers.length > 0) {
       return `**Blockers for ${projectData?.name || projectName}:**\n${blockers.map(b => `- ${b.title} (${b.assignee || "unassigned"})`).join("\n")}`;
     }
-    return `No blockers found for ${projectData?.name || projectName}.`;
+    if (activeIssues.length > 0) {
+      return `No formal blockers, but there are ${activeIssues.length} active issues for ${projectData?.name || projectName}:\n${activeIssues.slice(0, 5).map(i => `- [${i.identifier}] ${i.title}`).join("\n")}`;
+    }
+    return `No blockers or active issues found for ${projectData?.name || projectName}.`;
   }
 }
 
