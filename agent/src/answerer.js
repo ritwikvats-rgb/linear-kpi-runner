@@ -762,59 +762,55 @@ ${contextData || "No live data currently loaded. You can ask about specific pods
 
 /**
  * Handle specific questions about a project (blockers, risks, issues, etc.)
- * Fetches project data from Linear + Slack and uses LLM to answer conversationally.
+ * OPTIMIZED: Parallel fetching - no delays.
  */
 async function handleProjectQuestion(question, projectName, questionFocus, snapshot) {
-  // Find the project across all pods
   const podsResult = listPods();
   let projectData = null;
   let podName = null;
   let blockers = [];
   let activeIssues = [];
   let slackContext = "";
-  let linearComments = [];
 
-  // Search all pods for the project
-  for (const pod of podsResult.pods) {
-    try {
-      const result = await getLiveProjects(pod.name);
-      if (result.success) {
-        const match = result.projects.find(p =>
-          p.name.toLowerCase().includes(projectName.toLowerCase()) ||
-          projectName.toLowerCase().includes(p.name.toLowerCase().replace(/^.*?-\s*/, ''))
-        );
-        if (match) {
-          projectData = match;
-          podName = pod.name;
-
-          // Get detailed project info with blockers
-          try {
-            const detail = await getLiveProject(pod.name, match.name);
-            if (detail.success) {
-              blockers = detail.blockerIssues || [];
-              activeIssues = detail.activeIssues || [];
-            }
-          } catch (e) {}
-
-          // Fetch Slack messages and Linear comments for richer context
-          try {
-            const deepDive = await generateDeepDiveDiscussions(match);
-            if (deepDive) {
-              if (deepDive.keyDiscussions) {
-                slackContext = deepDive.keyDiscussions;
-              }
-              if (deepDive.slackMessageCount > 0) {
-                slackContext += `\n(Based on ${deepDive.slackMessageCount} Slack messages)`;
-              }
-            }
-          } catch (e) {
-            // Continue without Slack context
-          }
-
-          break;
+  // PARALLEL: Search all pods at once
+  const searchResults = await Promise.all(
+    podsResult.pods.map(async (pod) => {
+      try {
+        const result = await getLiveProjects(pod.name);
+        if (result.success) {
+          const match = result.projects.find(p =>
+            p.name.toLowerCase().includes(projectName.toLowerCase()) ||
+            projectName.toLowerCase().includes(p.name.toLowerCase().replace(/^.*?-\s*/, ''))
+          );
+          if (match) return { pod: pod.name, project: match };
         }
+      } catch (e) {}
+      return null;
+    })
+  );
+
+  const found = searchResults.find(r => r !== null);
+  if (found) {
+    projectData = found.project;
+    podName = found.pod;
+
+    // PARALLEL: Fetch Linear details + Slack at same time
+    const [detailResult, slackResult] = await Promise.all([
+      getLiveProject(podName, projectData.name).catch(() => null),
+      generateDeepDiveDiscussions(projectData).catch(() => null)
+    ]);
+
+    if (detailResult?.success) {
+      blockers = detailResult.blockerIssues || [];
+      activeIssues = detailResult.activeIssues || [];
+    }
+
+    if (slackResult?.keyDiscussions) {
+      slackContext = slackResult.keyDiscussions;
+      if (slackResult.slackMessageCount > 0) {
+        slackContext += `\n(Based on ${slackResult.slackMessageCount} Slack messages)`;
       }
-    } catch (e) {}
+    }
   }
 
   // Build context for LLM
