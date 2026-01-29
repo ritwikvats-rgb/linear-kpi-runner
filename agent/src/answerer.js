@@ -852,27 +852,41 @@ async function handleProjectQuestion(question, projectName, questionFocus, snaps
   }
 
   // Build LLM prompt - instruct to THINK and REASON, not just summarize
+  const today = new Date();
+  const todayStr = today.toLocaleDateString("en-IN", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata' });
+  const tomorrowDate = new Date(today);
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const tomorrowStr = tomorrowDate.toLocaleDateString("en-IN", { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata' });
+
   const systemPromptText = `You are an intelligent KPI Assistant with deep understanding of software projects. You can THINK, REASON, and provide INSIGHTS - not just summarize data.
+
+## CURRENT DATE & TIME
+- **Today is: ${todayStr}**
+- **Tomorrow is: ${tomorrowStr}**
+- Use this to understand time-based questions like "tomorrow's demo", "this week", "upcoming deadline"
 
 ## YOUR CAPABILITIES
 - You can ANALYZE data to find patterns and connections
 - You can INFER risks even if not explicitly labeled as "blocker"
 - You can UNDERSTAND context from Slack discussions to identify concerns
 - You can REASON about what issues might impact a demo, deadline, or release
+- You can COMPARE target dates with today to identify urgent issues
 - You can PREDICT potential problems based on the state of tickets
 
 ## HOW TO ANSWER
-1. THINK about what the user is really asking (e.g., "blockers for tomorrow's demo" = what could go wrong tomorrow?)
+1. THINK about what the user is really asking (e.g., "blockers for tomorrow's demo" = what could go wrong on ${tomorrowStr}?)
 2. ANALYZE all the data - tickets, states, discussions, patterns
 3. REASON about connections (e.g., if 3 tickets are "Deployed to Staging" but user asks about demo, those might be relevant)
-4. PROVIDE INSIGHTS - don't just list data, explain what it means
-5. BE PROACTIVE - if you see something concerning, mention it even if not directly asked
+4. CHECK target dates against today's date for urgency
+5. PROVIDE INSIGHTS - don't just list data, explain what it means
+6. BE PROACTIVE - if you see something concerning, mention it even if not directly asked
 
 ## RESPONSE STYLE
 - Be conversational and helpful like ChatGPT or Claude
 - Reference specific ticket IDs (TS-1234) when relevant
 - Explain WHY something is a concern, not just WHAT it is
 - If no formal blockers exist but issues could cause problems, say so
+- Mention if target dates are approaching or overdue
 - Offer to help further (e.g., "If you tell me which environment you're demoing on, I can be more specific")
 
 ## PROJECT DATA
@@ -1396,6 +1410,7 @@ async function generateDeepDiveDiscussions(project) {
                     issueId: issue.identifier,
                     author: c.user ? c.user.name : "Unknown",
                     body: c.body,
+                    createdAt: c.createdAt,
                   }));
               } catch (e) { return []; }
             })
@@ -1462,17 +1477,24 @@ async function generateDeepDiveDiscussions(project) {
               });
             };
 
+            // Helper to format Slack timestamp to readable date
+            const formatSlackTs = (ts) => {
+              if (!ts) return null;
+              const date = new Date(parseFloat(ts) * 1000);
+              return date.toLocaleDateString("en-IN", { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
+            };
+
             for (const m of humanMessages) {
               let userName = userMap[m.user] || "Someone";
               if (userName.match(/^U[A-Z0-9]+$/)) userName = "Someone";
-              slackMessages.push({ author: userName, text: cleanText(m.text) });
+              slackMessages.push({ author: userName, text: cleanText(m.text), timestamp: formatSlackTs(m.ts) });
 
               if (m.threadReplies) {
                 for (const r of m.threadReplies) {
                   if (!r.bot_id && r.text) {
                     let rName = userMap[r.user] || "Someone";
                     if (rName.match(/^U[A-Z0-9]+$/)) rName = "Someone";
-                    slackMessages.push({ author: rName, text: cleanText(r.text), isReply: true });
+                    slackMessages.push({ author: rName, text: cleanText(r.text), isReply: true, timestamp: formatSlackTs(r.ts) });
                   }
                 }
               }
@@ -1487,21 +1509,23 @@ async function generateDeepDiveDiscussions(project) {
   const { issues, linearComments } = linearData;
   const slackMessages = slackData;
 
-  // Build context for LLM
+  // Build context for LLM with timestamps
   let context = "";
 
   if (slackMessages.length > 0) {
-    context += "## SLACK DISCUSSIONS\n";
+    context += "## SLACK DISCUSSIONS (with timestamps)\n";
     for (const m of slackMessages.slice(0, 100)) {
       const prefix = m.isReply ? "  ↳ " : "- ";
-      context += `${prefix}${m.author}: ${m.text.substring(0, 300)}\n`;
+      const timeStr = m.timestamp ? `[${m.timestamp}] ` : "";
+      context += `${prefix}${timeStr}${m.author}: ${m.text.substring(0, 300)}\n`;
     }
   }
 
   if (linearComments.length > 0) {
-    context += "\n## LINEAR COMMENTS\n";
+    context += "\n## LINEAR COMMENTS (with timestamps)\n";
     for (const c of linearComments.slice(0, 30)) {
-      context += `- [${c.issueId}] ${c.author}: ${c.body.substring(0, 300)}\n`;
+      const timeStr = c.createdAt ? `[${new Date(c.createdAt).toLocaleDateString("en-IN", { month: 'short', day: 'numeric' })}] ` : "";
+      context += `- [${c.issueId}] ${timeStr}${c.author}: ${c.body.substring(0, 300)}\n`;
     }
   }
 
