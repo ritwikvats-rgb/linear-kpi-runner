@@ -1,0 +1,32 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#059669', 'primaryTextColor': '#fff', 'primaryBorderColor': '#047857', 'lineColor': '#10B981', 'secondaryColor': '#D1FAE5', 'tertiaryColor': '#ECFDF5'}}}%%
+flowchart LR
+    subgraph Input["User Input"]
+        Query["Query<br/>'kpi' / 'pod FTS'"]
+    end
+
+    subgraph Processing["Processing"]
+        Parse["Parse<br/>Command"]
+        LLM["LLM<br/>Interpreter"]
+        Route["Route to<br/>Handler"]
+    end
+
+    subgraph Fetch["Data Fetch"]
+        LinearAPI["Linear<br/>API"]
+        SlackAPI["Slack<br/>API"]
+        CacheCheck["Cache<br/>Check"]
+    end
+
+    subgraph Output["Output"]
+        Format["Format<br/>Response"]
+        Display["Display<br/>Tables"]
+    end
+
+    Query --> Parse
+    Parse --> LLM
+    LLM --> Route
+    Route --> CacheCheck
+    CacheCheck --> LinearAPI
+    CacheCheck --> SlackAPI
+    LinearAPI --> Format
+    SlackAPI --> Format
+    Format --> Display

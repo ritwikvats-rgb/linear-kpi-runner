@@ -1,0 +1,22 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#7C3AED', 'primaryTextColor': '#fff', 'primaryBorderColor': '#6D28D9', 'lineColor': '#8B5CF6', 'secondaryColor': '#EDE9FE', 'tertiaryColor': '#F5F3FF'}}}%%
+flowchart TB
+    index["index.js<br/>(CLI Entry)"]
+
+    index --> answerer["answerer.js<br/>(Query Engine)"]
+    index --> kpiStore["kpiStore.js"]
+    index --> cache["cache.js"]
+
+    answerer --> liveLinear["liveLinear.js<br/>(Live Data)"]
+    answerer --> kpiComputer["kpiComputer.js<br/>(Metrics)"]
+    answerer --> fuelix["fuelixClient.js<br/>(LLM)"]
+    answerer --> tableFormatter["tableFormatter.js<br/>(Output)"]
+    answerer --> slackClient["slackClient.js<br/>(Slack)"]
+
+    liveLinear --> linearClient["linearClient.js<br/>(Linear API)"]
+    liveLinear --> configLoader["configLoader.js"]
+
+    kpiComputer --> linearClient
+    kpiComputer --> cache
+
+    slackClient --> projectAnalyzer["projectAnalyzer.js<br/>(Combined Analysis)"]
+    linearClient --> projectAnalyzer

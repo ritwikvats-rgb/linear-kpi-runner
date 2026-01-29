@@ -1,0 +1,36 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#DC2626', 'primaryTextColor': '#fff', 'primaryBorderColor': '#B91C1C', 'lineColor': '#EF4444', 'secondaryColor': '#FEE2E2', 'tertiaryColor': '#FEF2F2'}}}%%
+flowchart TB
+    subgraph Config["1. Load Config"]
+        Pods["Load Pods<br/>Config"]
+        Labels["Load Label<br/>IDs"]
+        Calendar["Load Cycle<br/>Calendar"]
+    end
+
+    subgraph Fetch["2. Fetch Data"]
+        DEL["Fetch DEL<br/>Issues"]
+        Projects["Fetch<br/>Projects"]
+    end
+
+    subgraph Compute["3. Compute Metrics"]
+        Count["Count<br/>Committed/Completed"]
+        Calc["Calculate<br/>Delivery %"]
+        Spill["Calculate<br/>Spillover"]
+    end
+
+    subgraph Output["4. Generate Output"]
+        Tables["Format<br/>Tables"]
+        Insights["Generate<br/>Insights"]
+    end
+
+    Pods --> DEL
+    Labels --> DEL
+    Calendar --> DEL
+    Pods --> Projects
+
+    DEL --> Count
+    Projects --> Count
+    Count --> Calc
+    Calc --> Spill
+
+    Spill --> Tables
+    Tables --> Insights

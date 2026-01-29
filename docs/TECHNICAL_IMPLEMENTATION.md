@@ -60,6 +60,10 @@ Linear KPI Runner is an intelligent CLI-based KPI tracking system for engineerin
 
 ## Architecture
 
+### System Architecture Diagram
+
+![System Architecture](diagrams/architecture.png)
+
 ### High-Level System Components
 
 The system is organized into four main layers:
@@ -88,6 +92,8 @@ The system is organized into four main layers:
 
 ### Module Dependencies
 
+![Module Dependencies](diagrams/modules.png)
+
 | Module | Dependencies | Purpose |
 |--------|--------------|---------|
 | `index.js` | answerer, kpiStore, cache, liveLinear | CLI entry point |
@@ -98,6 +104,8 @@ The system is organized into four main layers:
 | `projectAnalyzer.js` | linearClient, slackClient, projectChannelMapper | Combined analysis |
 
 ### Data Flow
+
+![Data Flow](diagrams/dataflow.png)
 
 **User Query Flow:**
 1. User enters query → CLI REPL
@@ -219,6 +227,10 @@ The system is organized into four main layers:
 ---
 
 ## KPI Computation Logic
+
+### KPI Computation Flow
+
+![KPI Computation Flow](diagrams/kpi-flow.png)
 
 ### DEL (Delivery Excellence Level) Metrics
 

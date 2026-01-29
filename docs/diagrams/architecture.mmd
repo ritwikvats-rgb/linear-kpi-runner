@@ -1,0 +1,47 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#4F46E5', 'primaryTextColor': '#fff', 'primaryBorderColor': '#3730A3', 'lineColor': '#6366F1', 'secondaryColor': '#E0E7FF', 'tertiaryColor': '#F5F3FF'}}}%%
+flowchart TB
+    subgraph Entry["Entry Points"]
+        CLI["CLI REPL<br/>(index.js)"]
+        Scripts["Scripts<br/>(runWeeklyKpi.js)"]
+    end
+
+    subgraph APIs["External APIs"]
+        Linear["Linear<br/>GraphQL API"]
+        Slack["Slack<br/>Web API"]
+        Fuelix["Fuelix<br/>LLM API"]
+    end
+
+    subgraph Core["Core Engine"]
+        Answerer["Answerer<br/>Engine"]
+        KPI["KPI<br/>Computer"]
+        LiveLinear["Live Linear<br/>Fetcher"]
+        SlackClient["Slack<br/>Client"]
+        Analyzer["Project<br/>Analyzer"]
+    end
+
+    subgraph Data["Data Layer"]
+        SQLite["SQLite<br/>Database"]
+        Snapshots["Snapshot<br/>JSON Files"]
+        Config["Config<br/>Files"]
+        Cache["Cache<br/>Files"]
+    end
+
+    CLI --> Answerer
+    Scripts --> KPI
+
+    Answerer --> KPI
+    Answerer --> LiveLinear
+    Answerer --> SlackClient
+    Answerer --> Analyzer
+    Answerer --> Fuelix
+
+    KPI --> LiveLinear
+    LiveLinear --> Linear
+    SlackClient --> Slack
+    Analyzer --> SlackClient
+    Analyzer --> LiveLinear
+
+    LiveLinear --> Cache
+    KPI --> SQLite
+    KPI --> Config
+    Answerer --> Snapshots
