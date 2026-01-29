@@ -411,6 +411,9 @@
     const input = document.getElementById('questionInput');
     const btn = document.getElementById('askBtn');
 
+    // Conversation history for follow-up questions
+    let conversationHistory = [];
+
     function isMobile() {
       return window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     }
@@ -578,7 +581,11 @@
         const res = await fetch('/api/ask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question, mobile: isMobile() })
+          body: JSON.stringify({
+            question,
+            mobile: isMobile(),
+            history: conversationHistory  // Send conversation history for context
+          })
         });
 
         const data = await res.json();
@@ -586,6 +593,13 @@
 
         if (data.success) {
           addMessage(data.answer, 'assistant');
+          // Update conversation history
+          conversationHistory.push({ role: 'user', content: question });
+          conversationHistory.push({ role: 'assistant', content: data.answer });
+          // Keep only last 6 messages (3 exchanges) to avoid token limits
+          if (conversationHistory.length > 6) {
+            conversationHistory = conversationHistory.slice(-6);
+          }
         } else {
           addMessage(`Error: ${data.message || 'Something went wrong'}`, 'assistant');
         }

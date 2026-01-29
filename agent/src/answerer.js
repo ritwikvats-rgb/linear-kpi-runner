@@ -763,8 +763,10 @@ ${contextData || "No live data currently loaded. You can ask about specific pods
 /**
  * Handle specific questions about a project (blockers, risks, issues, etc.)
  * OPTIMIZED: Parallel fetching - no delays.
+ * Supports conversation history for follow-up questions.
  */
-async function handleProjectQuestion(question, projectName, questionFocus, snapshot) {
+async function handleProjectQuestion(question, projectName, questionFocus, snapshot, options = {}) {
+  const history = options.history || [];
   const podsResult = listPods();
   let projectData = null;
   let podName = null;
@@ -892,10 +894,20 @@ async function handleProjectQuestion(question, projectName, questionFocus, snaps
 ## PROJECT DATA
 ${projectContext}`;
 
+  // Build messages with conversation history for follow-ups
   const messages = [
     { role: "system", content: systemPromptText },
-    { role: "user", content: question }
   ];
+
+  // Add conversation history (previous Q&A pairs)
+  if (history.length > 0) {
+    for (const msg of history) {
+      messages.push({ role: msg.role, content: msg.content });
+    }
+  }
+
+  // Add current question
+  messages.push({ role: "user", content: question });
 
   try {
     const response = await fuelixChat({ messages, temperature: 0.7, timeout: 25000 });
@@ -2709,7 +2721,8 @@ async function answer(question, snapshot, options = {}) {
             question,
             interpretation.entity,
             interpretation.questionFocus || interpretation.question_focus,
-            snapshot
+            snapshot,
+            options
           );
         }
 

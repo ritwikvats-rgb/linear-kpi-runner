@@ -26,9 +26,9 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Main question endpoint
+// Main question endpoint - supports conversation history
 app.post("/api/ask", async (req, res) => {
-  const { question, mobile } = req.body;
+  const { question, mobile, history } = req.body;
 
   if (!question || typeof question !== "string") {
     return res.status(400).json({
@@ -40,7 +40,11 @@ app.post("/api/ask", async (req, res) => {
   try {
     // Use the existing answerer which returns grounded data
     // Pass mobile flag for simplified output format
-    const response = await answer(question.trim(), null, { mobile: !!mobile });
+    // Pass conversation history for context
+    const response = await answer(question.trim(), null, {
+      mobile: !!mobile,
+      history: Array.isArray(history) ? history.slice(-6) : [] // Keep last 6 messages (3 exchanges)
+    });
 
     res.json({
       success: true,
