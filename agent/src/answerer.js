@@ -421,7 +421,7 @@ function formatPodsList(result) {
 // ============== COMMAND PARSING ==============
 
 // Known pod names for detection
-const POD_NAMES = ["fts", "gts", "platform", "control center", "talent studio", "growth & reuse", "growth and reuse", "gr"];
+const POD_NAMES = ["fts", "gts", "platform", "control center", "talent studio", "growth & reuse", "growth and reuse", "gr", "ml", "fot", "bts"];
 
 /**
  * Check if a string is EXACTLY a pod name (not a project name within a pod)
@@ -448,6 +448,9 @@ function extractPodFromQuery(input) {
       if (pod === "platform") return "Platform";
       if (pod === "control center") return "Control Center";
       if (pod === "talent studio") return "Talent Studio";
+      if (pod === "ml") return "ML";
+      if (pod === "fot") return "FOT";
+      if (pod === "bts") return "BTS";
       return pod;
     }
   }
@@ -630,10 +633,10 @@ function parseCommand(input) {
 
   // POD-SPECIFIC natural language queries - "what's going on in FTS?"
   const podQueryPatterns = [
-    /what(?:'s|s| is) (?:going on|happening) (?:in|with|on) (fts|gts|platform|control center|talent studio|growth.{1,5}reuse|gr)\??$/i,
-    /(?:status|update|summary) (?:of|on|for) (fts|gts|platform|control center|talent studio|growth.{1,5}reuse|gr)\??$/i,
-    /(?:tell me about|show me) (fts|gts|platform|control center|talent studio|growth.{1,5}reuse|gr)\??$/i,
-    /how(?:'s| is) (fts|gts|platform|control center|talent studio|growth.{1,5}reuse|gr) (?:doing)?\??$/i,
+    /what(?:'s|s| is) (?:going on|happening) (?:in|with|on) (fts|gts|platform|control center|talent studio|growth.{1,5}reuse|gr|ml|fot|bts)\??$/i,
+    /(?:status|update|summary) (?:of|on|for) (fts|gts|platform|control center|talent studio|growth.{1,5}reuse|gr|ml|fot|bts)\??$/i,
+    /(?:tell me about|show me) (fts|gts|platform|control center|talent studio|growth.{1,5}reuse|gr|ml|fot|bts)\??$/i,
+    /how(?:'s| is) (fts|gts|platform|control center|talent studio|growth.{1,5}reuse|gr|ml|fot|bts) (?:doing)?\??$/i,
   ];
 
   for (const pattern of podQueryPatterns) {
