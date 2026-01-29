@@ -1358,126 +1358,134 @@ function getHealthStatus(score) {
 
 /**
  * Generate structured deep dive discussions for a single project
- * Returns numbered key insights from Slack + Linear
+ * OPTIMIZED: Linear + Slack fetch in parallel
  */
 async function generateDeepDiveDiscussions(project) {
   const linearClient = getLinearClientForSlack();
   const slackClient = getSlackClient();
   const channelMapper = getChannelMapper();
 
-  let slackMessages = [];
-  let linearComments = [];
-  let issues = [];
-
-  // Fetch Linear issues
-  if (linearClient && project.id) {
-    try {
-      const allIssues = await linearClient.getIssuesByProject(project.id);
-      issues = allIssues
-        .filter(i => i.state && i.state.type !== "completed" && i.state.type !== "canceled")
-        .map(i => ({
-          identifier: i.identifier,
-          title: i.title,
-          status: i.state ? i.state.name : "Unknown",
-          assignee: i.assignee ? i.assignee.name : "Unassigned",
-        }));
-
-      // Fetch comments for active issues
-      for (const issue of allIssues.slice(0, 10)) {
+  // PARALLEL: Fetch Linear and Slack at the same time
+  const [linearData, slackData] = await Promise.all([
+    // Linear fetch
+    (async () => {
+      let issues = [];
+      let linearComments = [];
+      if (linearClient && project.id) {
         try {
-          const comments = await linearClient.getIssueComments(issue.id, 10);
+          const allIssues = await linearClient.getIssuesByProject(project.id);
+          issues = allIssues
+            .filter(i => i.state && i.state.type !== "completed" && i.state.type !== "canceled")
+            .map(i => ({
+              identifier: i.identifier,
+              title: i.title,
+              status: i.state ? i.state.name : "Unknown",
+              assignee: i.assignee ? i.assignee.name : "Unassigned",
+            }));
+
+          // Fetch comments in parallel
           const cutoff = new Date();
           cutoff.setDate(cutoff.getDate() - 14);
-          for (const c of comments) {
-            if (new Date(c.createdAt) >= cutoff) {
-              linearComments.push({
-                issueId: issue.identifier,
-                author: c.user ? c.user.name : "Unknown",
-                body: c.body,
-              });
-            }
-          }
+          const commentResults = await Promise.all(
+            allIssues.slice(0, 10).map(async (issue) => {
+              try {
+                const comments = await linearClient.getIssueComments(issue.id, 10);
+                return comments
+                  .filter(c => new Date(c.createdAt) >= cutoff)
+                  .map(c => ({
+                    issueId: issue.identifier,
+                    author: c.user ? c.user.name : "Unknown",
+                    body: c.body,
+                  }));
+              } catch (e) { return []; }
+            })
+          );
+          linearComments = commentResults.flat();
         } catch (e) {}
       }
-    } catch (e) {}
-  }
+      return { issues, linearComments };
+    })(),
 
-  // Fetch Slack messages if channel configured
-  if (slackClient && channelMapper) {
-    try {
-      const projectsWithChannels = await channelMapper.getProjectsWithChannels();
-      const channelEntry = projectsWithChannels.find(e => e.project.id === project.id);
-
-      if (channelEntry) {
+    // Slack fetch
+    (async () => {
+      let slackMessages = [];
+      if (slackClient && channelMapper) {
         try {
-          await slackClient.joinChannel(channelEntry.channelId);
-        } catch (e) {}
+          const projectsWithChannels = await channelMapper.getProjectsWithChannels();
+          const channelEntry = projectsWithChannels.find(e => e.project.id === project.id);
 
-        const messages = await slackClient.getMessagesWithThreads(channelEntry.channelId, {
-          oldest: "0",
-          includeThreads: true,
-        });
+          if (channelEntry) {
+            // Join and fetch messages in parallel
+            const [, messages] = await Promise.all([
+              slackClient.joinChannel(channelEntry.channelId).catch(() => {}),
+              slackClient.getMessagesWithThreads(channelEntry.channelId, {
+                oldest: "0",
+                includeThreads: true,
+              })
+            ]);
 
-        const humanMessages = messages.filter(m => !m.bot_id && m.type === "message" && m.text);
+            const humanMessages = messages.filter(m => !m.bot_id && m.type === "message" && m.text);
 
-        // Collect ALL user IDs - from authors AND @mentions in text
-        const allUserIds = new Set();
-        for (const m of humanMessages) {
-          if (m.user) allUserIds.add(m.user);
-          // Extract @mentions from text
-          const mentions = m.text.match(/<@([A-Z0-9]+)>/g) || [];
-          for (const mention of mentions) {
-            allUserIds.add(mention.replace(/<@|>/g, ""));
-          }
-          // Also check thread replies
-          if (m.threadReplies) {
-            for (const r of m.threadReplies) {
-              if (r.user) allUserIds.add(r.user);
-              const rMentions = (r.text || "").match(/<@([A-Z0-9]+)>/g) || [];
-              for (const mention of rMentions) {
+            // Collect user IDs
+            const allUserIds = new Set();
+            for (const m of humanMessages) {
+              if (m.user) allUserIds.add(m.user);
+              const mentions = m.text.match(/<@([A-Z0-9]+)>/g) || [];
+              for (const mention of mentions) {
                 allUserIds.add(mention.replace(/<@|>/g, ""));
               }
+              if (m.threadReplies) {
+                for (const r of m.threadReplies) {
+                  if (r.user) allUserIds.add(r.user);
+                  const rMentions = (r.text || "").match(/<@([A-Z0-9]+)>/g) || [];
+                  for (const mention of rMentions) {
+                    allUserIds.add(mention.replace(/<@|>/g, ""));
+                  }
+                }
+              }
             }
-          }
-        }
 
-        // Resolve ALL user IDs to names
-        let userMap = {};
-        if (allUserIds.size > 0) {
-          try {
-            userMap = await slackClient.resolveUserNames([...allUserIds]);
-          } catch (e) {}
-        }
+            // Resolve user names
+            let userMap = {};
+            if (allUserIds.size > 0) {
+              try {
+                userMap = await slackClient.resolveUserNames([...allUserIds]);
+              } catch (e) {}
+            }
 
-        // Helper to clean text - replace all user IDs with names
-        const cleanText = (text) => {
-          if (!text) return text;
-          return text.replace(/<@([A-Z0-9]+)>/g, (match, userId) => {
-            const name = userMap[userId];
-            if (name && !name.match(/^U[A-Z0-9]+$/)) return name;
-            return "someone";
-          });
-        };
+            const cleanText = (text) => {
+              if (!text) return text;
+              return text.replace(/<@([A-Z0-9]+)>/g, (match, userId) => {
+                const name = userMap[userId];
+                if (name && !name.match(/^U[A-Z0-9]+$/)) return name;
+                return "someone";
+              });
+            };
 
-        for (const m of humanMessages) {
-          let userName = userMap[m.user] || "Someone";
-          if (userName.match(/^U[A-Z0-9]+$/)) userName = "Someone";
-          slackMessages.push({ author: userName, text: cleanText(m.text) });
+            for (const m of humanMessages) {
+              let userName = userMap[m.user] || "Someone";
+              if (userName.match(/^U[A-Z0-9]+$/)) userName = "Someone";
+              slackMessages.push({ author: userName, text: cleanText(m.text) });
 
-          // Include thread replies
-          if (m.threadReplies) {
-            for (const r of m.threadReplies) {
-              if (!r.bot_id && r.text) {
-                let rName = userMap[r.user] || "Someone";
-                if (rName.match(/^U[A-Z0-9]+$/)) rName = "Someone";
-                slackMessages.push({ author: rName, text: cleanText(r.text), isReply: true });
+              if (m.threadReplies) {
+                for (const r of m.threadReplies) {
+                  if (!r.bot_id && r.text) {
+                    let rName = userMap[r.user] || "Someone";
+                    if (rName.match(/^U[A-Z0-9]+$/)) rName = "Someone";
+                    slackMessages.push({ author: rName, text: cleanText(r.text), isReply: true });
+                  }
+                }
               }
             }
           }
-        }
+        } catch (e) {}
       }
-    } catch (e) {}
-  }
+      return slackMessages;
+    })()
+  ]);
+
+  const { issues, linearComments } = linearData;
+  const slackMessages = slackData;
 
   // Build context for LLM
   let context = "";
