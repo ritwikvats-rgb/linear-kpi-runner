@@ -534,11 +534,12 @@ ${projectList}
 - "pod_info" - User wants info about a specific pod (e.g., "whats up with fts", "how is talent studio doing")
 - "project_info" - User wants info about a specific project (e.g., "AI interviewer status", "deep dive data cohorts")
 - "all_pods" - User wants overview of all pods (e.g., "how are all teams doing", "overall status")
-- "unknown" - Can't determine intent
+- "conversation" - User is asking an open-ended question, making conversation, or asking for insights/highlights/summary that doesn't target a specific pod or project (e.g., "anything to highlight?", "what should I know?", "any risks?", "hello", "thanks", "what's important today?")
+- "unknown" - ONLY use this if the input is completely gibberish or unintelligible
 
 ## OUTPUT FORMAT (JSON only, no explanation)
 {
-  "intent": "pod_info" | "project_info" | "all_pods" | "unknown",
+  "intent": "pod_info" | "project_info" | "all_pods" | "conversation" | "unknown",
   "entity": "corrected pod or project name" | null,
   "confidence": "high" | "medium" | "low",
   "corrected_query": "what user probably meant"
@@ -557,8 +558,20 @@ Output: {"intent": "pod_info", "entity": "Talent Studio", "confidence": "high", 
 Input: "deep dive into data driven cohorts"
 Output: {"intent": "project_info", "entity": "Data-Driven Cohorts", "confidence": "high", "corrected_query": "Deep dive into Data-Driven Cohorts project"}
 
+Input: "anything else you want to highlight?"
+Output: {"intent": "conversation", "entity": null, "confidence": "high", "corrected_query": "What are the key highlights or important things to know?"}
+
+Input: "what should I be aware of?"
+Output: {"intent": "conversation", "entity": null, "confidence": "high", "corrected_query": "What are the important things to be aware of?"}
+
+Input: "any blockers or risks across teams?"
+Output: {"intent": "conversation", "entity": null, "confidence": "high", "corrected_query": "Are there any blockers or risks across all teams?"}
+
 Input: "hello"
-Output: {"intent": "unknown", "entity": null, "confidence": "low", "corrected_query": null}`
+Output: {"intent": "conversation", "entity": null, "confidence": "high", "corrected_query": "User greeting"}
+
+Input: "thanks"
+Output: {"intent": "conversation", "entity": null, "confidence": "high", "corrected_query": "User expressing thanks"}`
     },
     { role: "user", content: input }
   ];
@@ -582,6 +595,102 @@ Output: {"intent": "unknown", "entity": null, "confidence": "low", "corrected_qu
   }
 
   return { success: false, intent: "unknown", entity: null };
+}
+
+/**
+ * Handle conversational/open-ended queries using LLM
+ * This allows natural language questions like "anything to highlight?", "what should I know?", etc.
+ */
+async function handleConversationalQuery(question, availablePods, snapshot) {
+  // Gather context from live data
+  let contextData = "";
+
+  try {
+    // Get high-level overview of all pods
+    const podsResult = listPods();
+    if (podsResult.pods && podsResult.pods.length > 0) {
+      contextData += "## Available Pods\n";
+      for (const pod of podsResult.pods) {
+        contextData += `- ${pod.name}\n`;
+      }
+      contextData += "\n";
+    }
+
+    // Get summary data from each pod (blockers, risks, key projects)
+    const podSummaries = [];
+    for (const podName of availablePods.slice(0, 5)) {
+      try {
+        const summary = await getLivePodSummary(podName);
+        if (summary.success) {
+          podSummaries.push({
+            pod: podName,
+            projects: summary.projectCount,
+            done: summary.projectStats.done,
+            inFlight: summary.projectStats.in_flight,
+            notStarted: summary.projectStats.not_started,
+            blockers: summary.issueStats.blockers || 0,
+            risks: summary.issueStats.risks || 0,
+            topProjects: summary.topProjects?.slice(0, 3) || []
+          });
+        }
+      } catch (e) {
+        // Skip this pod
+      }
+    }
+
+    if (podSummaries.length > 0) {
+      contextData += "## Pod Summaries (Live Data)\n";
+      for (const ps of podSummaries) {
+        contextData += `### ${ps.pod}\n`;
+        contextData += `- Projects: ${ps.projects} total (Done: ${ps.done}, In-Flight: ${ps.inFlight}, Not Started: ${ps.notStarted})\n`;
+        if (ps.blockers > 0) contextData += `- **Blockers: ${ps.blockers}**\n`;
+        if (ps.risks > 0) contextData += `- Risks: ${ps.risks}\n`;
+        if (ps.topProjects.length > 0) {
+          contextData += `- Top Projects: ${ps.topProjects.map(p => p.name).join(", ")}\n`;
+        }
+        contextData += "\n";
+      }
+    }
+  } catch (e) {
+    // Continue with whatever context we have
+  }
+
+  // Add snapshot data if available
+  if (snapshot) {
+    contextData += "## Snapshot Data\n";
+    contextData += JSON.stringify(snapshot, null, 2);
+    contextData += "\n";
+  }
+
+  // Build conversational prompt
+  const conversationalSystemPrompt = `You are a helpful KPI Assistant for a project management dashboard. You have access to data about various engineering pods (teams) and their projects.
+
+Your job is to have natural conversations with users and answer their questions based on the available data. Be friendly, helpful, and informative.
+
+## GUIDELINES
+1. Answer questions naturally - don't just list data, provide insights
+2. If asked for highlights, blockers, or risks - summarize the most important ones
+3. For greetings like "hello" or "hi", respond warmly and offer to help
+4. For thanks, acknowledge it graciously
+5. If you don't have enough data to answer, say so and suggest what queries might help
+6. Keep responses concise but informative
+7. Use bullet points and formatting for clarity when listing multiple items
+8. Highlight important issues (blockers, risks) prominently
+
+## AVAILABLE DATA
+${contextData || "No live data currently loaded. You can ask about specific pods (e.g., 'pod FTS') or projects to get detailed information."}`;
+
+  const messages = [
+    { role: "system", content: conversationalSystemPrompt },
+    { role: "user", content: question }
+  ];
+
+  try {
+    const response = await fuelixChat({ messages, temperature: 0.7 });
+    return response.trim();
+  } catch (e) {
+    return `I'm here to help! You can ask me about:\n- **Pod status**: "pod FTS" or "how is Talent Studio doing?"\n- **Project details**: "deep dive AI Interviewer"\n- **All pods overview**: "pods" or "show all teams"\n\nWhat would you like to know?`;
+  }
 }
 
 /**
@@ -2360,28 +2469,19 @@ async function answer(question, snapshot, options = {}) {
         if (interpretation.intent === "all_pods") {
           return answer("pods", snapshot, options);
         }
-      }
 
-      // If LLM couldn't help, show helpful message with suggestion
-      if (interpretation.correctedQuery) {
-        return `I couldn't understand "${question}". Did you mean: **${interpretation.correctedQuery}**?\n\nTry commands like:\n- "pod fts" - View FTS pod status\n- "deep dive AI Interviewer" - Project deep dive\n- "pods" - List all pods`;
+        // Handle conversational/open-ended queries with LLM
+        if (interpretation.intent === "conversation") {
+          return await handleConversationalQuery(question, availablePods, snapshot);
+        }
       }
     } catch (e) {
       // LLM interpretation failed, continue to fallback
     }
   }
 
-  // LLM fallback with snapshot
-  if (snapshot) {
-    const messages = [
-      { role: "system", content: systemPrompt() },
-      { role: "user", content: `Snapshot JSON:\n${JSON.stringify(snapshot)}\n\nUser question: ${question}` },
-    ];
-    const out = await fuelixChat({ messages });
-    return out.trim();
-  }
-
-  return `I couldn't understand "${question}".\n\nTry commands like:\n- "pod fts" or "pod talent studio" - View pod status\n- "deep dive [project name]" - Project deep dive\n- "whats going on in [project]" - Project status\n- "pods" - List all pods`;
+  // LLM fallback - use conversational handler for any unmatched query
+  return await handleConversationalQuery(question, [], snapshot);
 }
 
 module.exports = { answer, parseCommand };
