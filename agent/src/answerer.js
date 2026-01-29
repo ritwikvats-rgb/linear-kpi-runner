@@ -597,68 +597,124 @@ Output: {"intent": "conversation", "entity": null, "confidence": "high", "correc
   return { success: false, intent: "unknown", entity: null };
 }
 
+// Cache for conversation context (TTL: 2 minutes)
+let _conversationContextCache = { data: null, timestamp: 0 };
+const CONTEXT_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+
+// Quick responses for simple greetings (no data fetch needed)
+const QUICK_RESPONSES = {
+  greetings: ["hello", "hi", "hey", "good morning", "good afternoon", "good evening"],
+  thanks: ["thanks", "thank you", "thx", "ty", "cheers"],
+};
+
+function isSimpleGreeting(question) {
+  const q = question.toLowerCase().trim();
+  return QUICK_RESPONSES.greetings.some(g => q === g || q === g + "!");
+}
+
+function isSimpleThanks(question) {
+  const q = question.toLowerCase().trim();
+  return QUICK_RESPONSES.thanks.some(t => q.includes(t));
+}
+
 /**
  * Handle conversational/open-ended queries using LLM
  * This allows natural language questions like "anything to highlight?", "what should I know?", etc.
+ * Optimized for speed with parallel fetching and caching.
  */
 async function handleConversationalQuery(question, availablePods, snapshot) {
-  // Gather context from live data
+  // Fast path for simple greetings - no data fetch needed
+  if (isSimpleGreeting(question)) {
+    return "Hello! I'm your KPI Assistant. I can help you with:\n- **Pod status**: \"pod FTS\" or \"how is Platform doing?\"\n- **Project details**: \"deep dive AI Interviewer\"\n- **All pods**: \"pods\"\n- **Highlights & risks**: \"anything to highlight?\"\n\nWhat would you like to know?";
+  }
+
+  if (isSimpleThanks(question)) {
+    return "You're welcome! Let me know if you need anything else.";
+  }
+
+  // Check cache for context data
+  const now = Date.now();
   let contextData = "";
 
-  try {
-    // Get high-level overview of all pods
-    const podsResult = listPods();
-    if (podsResult.pods && podsResult.pods.length > 0) {
-      contextData += "## Available Pods\n";
-      for (const pod of podsResult.pods) {
-        contextData += `- ${pod.name}\n`;
-      }
-      contextData += "\n";
-    }
-
-    // Get summary data from each pod (blockers, risks, key projects)
-    const podSummaries = [];
-    for (const podName of availablePods.slice(0, 5)) {
-      try {
-        const summary = await getLivePodSummary(podName);
-        if (summary.success) {
-          podSummaries.push({
-            pod: podName,
-            projects: summary.projectCount,
-            done: summary.projectStats.done,
-            inFlight: summary.projectStats.in_flight,
-            notStarted: summary.projectStats.not_started,
-            blockers: summary.issueStats.blockers || 0,
-            risks: summary.issueStats.risks || 0,
-            topProjects: summary.topProjects?.slice(0, 3) || []
-          });
-        }
-      } catch (e) {
-        // Skip this pod
-      }
-    }
-
-    if (podSummaries.length > 0) {
-      contextData += "## Pod Summaries (Live Data)\n";
-      for (const ps of podSummaries) {
-        contextData += `### ${ps.pod}\n`;
-        contextData += `- Projects: ${ps.projects} total (Done: ${ps.done}, In-Flight: ${ps.inFlight}, Not Started: ${ps.notStarted})\n`;
-        if (ps.blockers > 0) contextData += `- **Blockers: ${ps.blockers}**\n`;
-        if (ps.risks > 0) contextData += `- Risks: ${ps.risks}\n`;
-        if (ps.topProjects.length > 0) {
-          contextData += `- Top Projects: ${ps.topProjects.map(p => p.name).join(", ")}\n`;
+  if (_conversationContextCache.data && (now - _conversationContextCache.timestamp) < CONTEXT_CACHE_TTL) {
+    contextData = _conversationContextCache.data;
+  } else {
+    // Build fresh context
+    try {
+      // Get high-level overview of all pods
+      const podsResult = listPods();
+      if (podsResult.pods && podsResult.pods.length > 0) {
+        contextData += "## Available Pods\n";
+        for (const pod of podsResult.pods) {
+          contextData += `- ${pod.name}\n`;
         }
         contextData += "\n";
       }
+
+      // Fetch pod summaries IN PARALLEL for speed
+      const podsToFetch = availablePods.slice(0, 5);
+      if (podsToFetch.length > 0) {
+        const summaryPromises = podsToFetch.map(podName =>
+          getLivePodSummary(podName)
+            .then(summary => ({ podName, summary, success: true }))
+            .catch(() => ({ podName, success: false }))
+        );
+
+        // Wait for all with a timeout
+        const results = await Promise.race([
+          Promise.all(summaryPromises),
+          new Promise(resolve => setTimeout(() => resolve([]), 10000)) // 10s timeout
+        ]);
+
+        const podSummaries = results
+          .filter(r => r.success && r.summary?.success)
+          .map(r => ({
+            pod: r.podName,
+            projects: r.summary.projectCount,
+            done: r.summary.projectStats.done,
+            inFlight: r.summary.projectStats.in_flight,
+            notStarted: r.summary.projectStats.not_started,
+            blockers: r.summary.issueStats?.blockers || 0,
+            risks: r.summary.issueStats?.risks || 0,
+            topProjects: r.summary.topProjects?.slice(0, 3) || []
+          }));
+
+        if (podSummaries.length > 0) {
+          contextData += "## Pod Summaries (Live Data)\n";
+          for (const ps of podSummaries) {
+            contextData += `### ${ps.pod}\n`;
+            contextData += `- Projects: ${ps.projects} total (Done: ${ps.done}, In-Flight: ${ps.inFlight}, Not Started: ${ps.notStarted})\n`;
+            if (ps.blockers > 0) contextData += `- **Blockers: ${ps.blockers}**\n`;
+            if (ps.risks > 0) contextData += `- Risks: ${ps.risks}\n`;
+            if (ps.topProjects.length > 0) {
+              contextData += `- Top Projects: ${ps.topProjects.map(p => p.name).join(", ")}\n`;
+            }
+            contextData += "\n";
+          }
+        }
+      }
+
+      // Cache the context
+      _conversationContextCache = { data: contextData, timestamp: now };
+    } catch (e) {
+      // Continue with whatever context we have
     }
-  } catch (e) {
-    // Continue with whatever context we have
   }
 
-  // Add snapshot data if available
-  if (snapshot) {
+  // Add snapshot data if available (compact version)
+  if (snapshot && !contextData) {
     contextData += "## Snapshot Data\n";
-    contextData += JSON.stringify(snapshot, null, 2);
+    // Only include essential fields to reduce token count
+    const compactSnapshot = {
+      pods: snapshot.pods?.map(p => ({
+        name: p.name,
+        done: p.done,
+        inFlight: p.inFlight,
+        blockers: p.blockers?.length || 0
+      })),
+      generated_at: snapshot.generated_at
+    };
+    contextData += JSON.stringify(compactSnapshot, null, 2);
     contextData += "\n";
   }
 
@@ -670,12 +726,10 @@ Your job is to have natural conversations with users and answer their questions 
 ## GUIDELINES
 1. Answer questions naturally - don't just list data, provide insights
 2. If asked for highlights, blockers, or risks - summarize the most important ones
-3. For greetings like "hello" or "hi", respond warmly and offer to help
-4. For thanks, acknowledge it graciously
-5. If you don't have enough data to answer, say so and suggest what queries might help
-6. Keep responses concise but informative
-7. Use bullet points and formatting for clarity when listing multiple items
-8. Highlight important issues (blockers, risks) prominently
+3. Keep responses concise but informative
+4. Use bullet points for clarity when listing multiple items
+5. Highlight important issues (blockers, risks) prominently
+6. If you don't have enough data, suggest specific queries
 
 ## AVAILABLE DATA
 ${contextData || "No live data currently loaded. You can ask about specific pods (e.g., 'pod FTS') or projects to get detailed information."}`;
@@ -686,7 +740,7 @@ ${contextData || "No live data currently loaded. You can ask about specific pods
   ];
 
   try {
-    const response = await fuelixChat({ messages, temperature: 0.7 });
+    const response = await fuelixChat({ messages, temperature: 0.7, timeout: 20000 });
     return response.trim();
   } catch (e) {
     return `I'm here to help! You can ask me about:\n- **Pod status**: "pod FTS" or "how is Talent Studio doing?"\n- **Project details**: "deep dive AI Interviewer"\n- **All pods overview**: "pods" or "show all teams"\n\nWhat would you like to know?`;
