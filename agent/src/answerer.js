@@ -628,8 +628,10 @@ function isSimpleThanks(question) {
  * Handle conversational/open-ended queries using LLM
  * This allows natural language questions like "anything to highlight?", "what should I know?", etc.
  * Optimized for speed with parallel fetching and caching.
+ * Supports conversation history for follow-up answers.
  */
-async function handleConversationalQuery(question, availablePods, snapshot) {
+async function handleConversationalQuery(question, availablePods, snapshot, options = {}) {
+  const history = options.history || [];
   // Fast path for simple greetings - no data fetch needed
   if (isSimpleGreeting(question)) {
     return "Hello! I'm your KPI Assistant. I can help you with:\n- **Pod status**: \"pod FTS\" or \"how is Platform doing?\"\n- **Project details**: \"deep dive AI Interviewer\"\n- **All pods**: \"pods\"\n- **Highlights & risks**: \"anything to highlight?\"\n\nWhat would you like to know?";
@@ -747,10 +749,20 @@ async function handleConversationalQuery(question, availablePods, snapshot) {
 ## AVAILABLE DATA
 ${contextData || "No live data currently loaded. You can ask about specific pods (e.g., 'pod FTS') or projects to get detailed information."}`;
 
+  // Build messages with conversation history
   const messages = [
     { role: "system", content: conversationalSystemPrompt },
-    { role: "user", content: question }
   ];
+
+  // Add conversation history for context (so LLM understands follow-ups)
+  if (history.length > 0) {
+    for (const msg of history) {
+      messages.push({ role: msg.role, content: msg.content });
+    }
+  }
+
+  // Add current question
+  messages.push({ role: "user", content: question });
 
   try {
     const response = await fuelixChat({ messages, temperature: 0.7, timeout: 20000 });
@@ -2674,6 +2686,21 @@ async function answer(question, snapshot, options = {}) {
   // LLM-based query interpretation for unknown commands
   // This handles typos, natural language variations, etc.
   if (cmd.type === "unknown") {
+    const history = options.history || [];
+
+    // IMPORTANT: Detect short follow-up answers (1-3 words) when there's conversation history
+    // Examples: "staging", "yes", "prelive", "the first one", "AI interviewer"
+    // These should be handled conversationally, not re-interpreted as new queries
+    const wordCount = question.trim().split(/\s+/).length;
+    const isLikelyFollowUp = history.length > 0 && wordCount <= 4;
+
+    if (isLikelyFollowUp) {
+      // This is probably an answer to a previous question - handle conversationally
+      const podsResult = listPods();
+      const availablePods = podsResult.pods.map(p => p.name);
+      return await handleConversationalQuery(question, availablePods, snapshot, options);
+    }
+
     try {
       // Get available pods and projects for context
       const podsResult = listPods();
@@ -2732,7 +2759,7 @@ async function answer(question, snapshot, options = {}) {
 
         // Handle conversational/open-ended queries with LLM
         if (interpretation.intent === "conversation") {
-          return await handleConversationalQuery(question, availablePods, snapshot);
+          return await handleConversationalQuery(question, availablePods, snapshot, options);
         }
       }
     } catch (e) {
@@ -2741,7 +2768,7 @@ async function answer(question, snapshot, options = {}) {
   }
 
   // LLM fallback - use conversational handler for any unmatched query
-  return await handleConversationalQuery(question, [], snapshot);
+  return await handleConversationalQuery(question, [], snapshot, options);
 }
 
 module.exports = { answer, parseCommand };
