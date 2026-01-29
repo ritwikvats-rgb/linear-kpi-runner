@@ -22,5 +22,17 @@
   "Growth & Reuse": {
     "teamId": "8a22c37c-7e42-41ac-903b-fb262a0528e5",
     "initiativeName": "Q1 2026 - GR Roadmap"
+  },
+  "ML": {
+    "teamId": "c3c96f5b-54b6-4182-9df1-ca7882a8107d",
+    "initiativeName": "Q1 2026 - ML Roadmap"
+  },
+  "FOT": {
+    "teamId": "f2828bbe-6f0a-4c66-af53-55a9bbd8b830",
+    "initiativeName": "Q1 2026 - FOT Roadmap"
+  },
+  "BTS": {
+    "teamId": "bc93954a-d8dd-4eac-bddb-b9242b612ad6",
+    "initiativeName": "Q1 2026 – BTS Roadmap"
   }
 }
