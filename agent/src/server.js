@@ -9,6 +9,7 @@ const path = require("path");
 const { answer } = require("./answerer");
 const { getChartData, getPodDetailData } = require("./chartDataService");
 const { generateChartInsights } = require("./chartInsights");
+const { generateChartNarration } = require("./chartNarration");
 const { SlackClient } = require("./slackClient");
 const { LinearClient } = require("./linearClient");
 const { ProjectChannelMapper } = require("./projectChannelMapper");
@@ -91,6 +92,23 @@ app.get("/api/charts/insights", async (req, res) => {
       success: false,
       error: "INSIGHT_ERROR",
       message: err.message || "Failed to generate insights"
+    });
+  }
+});
+
+// Get LLM-powered chart narration
+app.get("/api/charts/narration", async (req, res) => {
+  try {
+    const focus = typeof req.query.focus === "string" ? req.query.focus : "executive";
+    const chartData = await getChartData();
+    const narration = await generateChartNarration(chartData, { focus });
+    res.json(narration);
+  } catch (err) {
+    console.error("Error generating narration:", err);
+    res.status(500).json({
+      success: false,
+      error: "NARRATION_ERROR",
+      message: err.message || "Failed to generate narration"
     });
   }
 });
