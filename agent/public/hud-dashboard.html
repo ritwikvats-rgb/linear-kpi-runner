@@ -694,11 +694,11 @@
           plugins: {
             legend: { display: false },
             datalabels: {
-              anchor: 'end',
-              align: 'top',
+              anchor: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 90 ? 'center' : 'end',
+              align: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 90 ? 'center' : 'top',
               formatter: v => v + '%',
               font: { weight: 'bold', size: 12 },
-              color: '#1e293b'
+              color: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 90 ? '#fff' : '#1e293b'
             }
           },
           scales: {
@@ -731,18 +731,19 @@
           options: {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: {
+              mode: 'index',
+              intersect: false
+            },
             plugins: {
               datalabels: {
-                display: (ctx) => ctx.dataset.data[ctx.dataIndex] !== null && ctx.dataset.data[ctx.dataIndex] > 0,
-                anchor: 'end',
-                align: 'top',
-                offset: 4,
-                formatter: v => v !== null ? v + '%' : '',
-                font: { weight: 'bold', size: 11 },
-                color: '#1e293b',
-                backgroundColor: 'rgba(255,255,255,0.8)',
-                borderRadius: 4,
-                padding: { top: 2, bottom: 2, left: 4, right: 4 }
+                display: false
+              },
+              tooltip: {
+                enabled: true,
+                callbacks: {
+                  label: (ctx) => ctx.dataset.label + ': ' + ctx.parsed.y + '%'
+                }
               }
             },
             scales: {
