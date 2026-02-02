@@ -737,7 +737,21 @@
             },
             plugins: {
               datalabels: {
-                display: false
+                display: (ctx) => {
+                  // Only show label for last non-null data point of each dataset
+                  const data = ctx.dataset.data;
+                  const lastIndex = data.reduce((last, val, i) => val !== null ? i : last, -1);
+                  return ctx.dataIndex === lastIndex && data[ctx.dataIndex] !== null;
+                },
+                anchor: 'end',
+                align: 'right',
+                offset: 6,
+                formatter: v => v !== null ? v + '%' : '',
+                font: { weight: 'bold', size: 11 },
+                color: (ctx) => ctx.dataset.borderColor,
+                backgroundColor: 'rgba(255,255,255,0.9)',
+                borderRadius: 4,
+                padding: { top: 2, bottom: 2, left: 4, right: 4 }
               },
               tooltip: {
                 enabled: true,

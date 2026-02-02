@@ -206,36 +206,18 @@ function buildFeatureByPodChart(featureMovement) {
 /**
  * Build Cycle Trend chart data (Line)
  * Shows delivery % over C1-C6 per pod
- * Only includes cycles that have actual data
+ * Always shows all 6 cycles on x-axis
  */
 function buildCycleTrendChart(cycleKpi) {
-  const allCycles = ["C1", "C2", "C3", "C4", "C5", "C6"];
+  const cycles = ["C1", "C2", "C3", "C4", "C5", "C6"];
 
-  // Find which cycles have any data (at least one pod with committed > 0)
-  const cyclesWithData = allCycles.filter(cycle =>
-    cycleKpi.some(r => r.cycle === cycle && r.status === "OK" && r.committed > 0)
-  );
-
-  // If no cycles have data, return empty chart
-  if (cyclesWithData.length === 0) {
-    return {
-      type: "line",
-      title: "Delivery Trend Across Cycles",
-      data: { labels: [], datasets: [] },
-    };
-  }
-
-  // Get unique pods that have data in any of the cycles with data
-  const pods = [...new Set(
-    cycleKpi
-      .filter(r => r.status === "OK" && r.committed > 0 && cyclesWithData.includes(r.cycle))
-      .map(r => r.pod)
-  )];
+  // Get unique pods
+  const pods = [...new Set(cycleKpi.filter(r => r.status === "OK").map(r => r.pod))];
 
   // Build datasets for each pod
   const datasets = pods.map(pod => {
     const podColor = getPodColor(pod);
-    const data = cyclesWithData.map(cycle => {
+    const data = cycles.map(cycle => {
       const row = cycleKpi.find(r => r.pod === pod && r.cycle === cycle);
       if (!row || row.committed === 0) return null; // No data for this cycle
       return parseInt(row.deliveryPct) || 0;
@@ -253,7 +235,7 @@ function buildCycleTrendChart(cycleKpi) {
       pointBorderWidth: 2,
       pointRadius: 6,
       pointHoverRadius: 8,
-      spanGaps: true,
+      spanGaps: false,
     };
   });
 
@@ -261,7 +243,7 @@ function buildCycleTrendChart(cycleKpi) {
     type: "line",
     title: "Delivery Trend Across Cycles",
     data: {
-      labels: cyclesWithData,
+      labels: cycles,
       datasets,
     },
   };
