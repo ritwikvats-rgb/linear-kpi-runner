@@ -160,6 +160,15 @@ function getAdhocBreakdown(teamName) {
   const capacity = calculateCapacity(teamName);
   const adhocBudget = capacity.adhocBudget;
 
+  // If only one category, use full adhoc budget
+  if (config.adhocCategories.length === 1) {
+    return [{
+      name: config.adhocCategories[0].name,
+      reason: config.adhocCategories[0].reason || "",
+      allocatedSP: adhocBudget,
+    }];
+  }
+
   // Scale default adhoc categories to fit actual budget
   const defaultTotal = config.adhocCategories.reduce((sum, cat) => sum + cat.defaultSP, 0);
   const scale = adhocBudget / defaultTotal;
@@ -168,7 +177,6 @@ function getAdhocBreakdown(teamName) {
     name: cat.name,
     reason: cat.reason || "",
     allocatedSP: Math.round(cat.defaultSP * scale),
-    defaultSP: cat.defaultSP,
   }));
 }
 
@@ -195,7 +203,6 @@ function generateSprintPlanningCSV(teamName, cycleName, options = {}) {
     cycleEnd = cycle.end.split("T")[0];
   }
 
-  const adhocBreakdown = getAdhocBreakdown(teamName);
   const team = config.teams[teamName];
   const members = team?.members || [];
 
@@ -249,11 +256,13 @@ function generateSprintPlanningCSV(teamName, cycleName, options = {}) {
   });
   lines.push("");
 
-  // Adhoc breakdown
+  // Adhoc breakdown - for FTS, all adhoc goes to "Adhoc BW"
   lines.push("WHAT ADHOC COVERS");
   lines.push("Category,SP Allocated,Why This Amount");
-  adhocBreakdown.forEach(cat => {
-    lines.push(`${cat.name},${cat.allocatedSP},"${cat.reason}"`);
+  config.adhocCategories.forEach(cat => {
+    // Use actual adhoc budget from capacity (accounts for leaves)
+    const sp = config.adhocCategories.length === 1 ? capacity.adhocBudget : cat.defaultSP;
+    lines.push(`${cat.name},${sp},"${cat.reason || ''}"`);
   });
   lines.push(`TOTAL ADHOC,${capacity.adhocBudget},`);
   lines.push("");

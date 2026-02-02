@@ -47,11 +47,7 @@
   },
 
   "adhocCategories": [
-    { "name": "PR Reviews", "defaultSP": 10, "reason": "Every dev spends ~1 day/sprint on code reviews" },
-    { "name": "Cross-pod Support", "defaultSP": 8, "reason": "Requests from Platform, GTS, other teams" },
-    { "name": "Prod Bugs/Hotfixes", "defaultSP": 8, "reason": "Urgent production issues that can't wait" },
-    { "name": "Adhoc BW", "defaultSP": 10, "reason": "Stakeholder requests, urgent features" },
-    { "name": "Buffer/Contingency", "defaultSP": 6, "reason": "Estimation errors, unknowns" }
+    { "name": "Adhoc BW", "defaultSP": 42, "reason": "Stakeholder requests, urgent features, bugs, support" }
   ],
 
   "formulas": {
