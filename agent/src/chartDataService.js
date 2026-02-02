@@ -9,14 +9,17 @@ const {
   computeFeatureMovement,
 } = require("./kpiComputer");
 
-// Pod color palette for charts
+// Pod color palette for charts - distinct colors for each pod
 const POD_COLORS = {
-  FTS: { primary: "#6366f1", gradient: ["#6366f1", "#818cf8"] },
-  GTS: { primary: "#8b5cf6", gradient: ["#8b5cf6", "#a78bfa"] },
-  "Control Center": { primary: "#ec4899", gradient: ["#ec4899", "#f472b6"] },
-  "Talent Studio": { primary: "#14b8a6", gradient: ["#14b8a6", "#2dd4bf"] },
-  Platform: { primary: "#f59e0b", gradient: ["#f59e0b", "#fbbf24"] },
-  "Growth and Reuse": { primary: "#22c55e", gradient: ["#22c55e", "#4ade80"] },
+  ML: { primary: "#ef4444", gradient: ["#ef4444", "#f87171"] },              // Red
+  "Control Center": { primary: "#f97316", gradient: ["#f97316", "#fb923c"] }, // Orange
+  BTS: { primary: "#eab308", gradient: ["#eab308", "#facc15"] },              // Yellow
+  FTS: { primary: "#22c55e", gradient: ["#22c55e", "#4ade80"] },              // Green
+  GTS: { primary: "#14b8a6", gradient: ["#14b8a6", "#2dd4bf"] },              // Teal
+  Platform: { primary: "#3b82f6", gradient: ["#3b82f6", "#60a5fa"] },         // Blue
+  FOT: { primary: "#6366f1", gradient: ["#6366f1", "#818cf8"] },              // Indigo
+  "Talent Studio": { primary: "#8b5cf6", gradient: ["#8b5cf6", "#a78bfa"] },  // Purple
+  "Growth and Reuse": { primary: "#ec4899", gradient: ["#ec4899", "#f472b6"] }, // Pink
 };
 
 // Default color for unknown pods

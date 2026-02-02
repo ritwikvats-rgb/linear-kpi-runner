@@ -743,8 +743,8 @@
                   const lastIndex = data.reduce((last, val, i) => val !== null ? i : last, -1);
                   return ctx.dataIndex === lastIndex && data[ctx.dataIndex] !== null;
                 },
-                anchor: 'end',
-                align: 'right',
+                anchor: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 95 ? 'start' : 'end',
+                align: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 95 ? 'bottom' : 'right',
                 offset: 6,
                 formatter: v => v !== null ? v + '%' : '',
                 font: { weight: 'bold', size: 11 },
