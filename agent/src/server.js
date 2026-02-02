@@ -229,6 +229,15 @@ app.get("/hud", (req, res) => {
   res.sendFile(path.join(__dirname, "../public/hud-dashboard.html"));
 });
 
+// Alias for KPI dashboard URL
+app.get("/kpi-dashboard.html", (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/hud-dashboard.html"));
+});
+
+app.get("/kpi-dashboard", (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/hud-dashboard.html"));
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`
