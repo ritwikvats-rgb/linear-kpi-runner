@@ -733,11 +733,11 @@
             maintainAspectRatio: false,
             plugins: {
               datalabels: {
-                display: true,
+                display: (ctx) => ctx.dataset.data[ctx.dataIndex] !== null && ctx.dataset.data[ctx.dataIndex] > 0,
                 anchor: 'end',
                 align: 'top',
                 offset: 4,
-                formatter: v => v + '%',
+                formatter: v => v !== null ? v + '%' : '',
                 font: { weight: 'bold', size: 11 },
                 color: '#1e293b',
                 backgroundColor: 'rgba(255,255,255,0.8)',
