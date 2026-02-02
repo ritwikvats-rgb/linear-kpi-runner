@@ -952,10 +952,16 @@ function formatPendingDELs(result, isMobile = false) {
   }
 
   // Format each pod's pending DELs as a table
+  // Helper to clean project name - remove "Q1 2026 : " prefix
+  const cleanProjectName = (name) => {
+    if (!name) return "No Project";
+    return name.replace(/^Q\d\s*\d{4}\s*:\s*/i, "").trim();
+  };
+
   for (const [podName, dels] of Object.entries(byPod)) {
     const rows = dels.map(del => ({
       id: del.identifier,
-      project: truncate(del.project || "No Project", 25),
+      project: truncate(cleanProjectName(del.project), 35),
       title: truncate(del.title, 30),
       assignee: del.assignee || "Unassigned",
       state: del.state
