@@ -16,26 +16,26 @@
   },
 
   "onCallDeductions": {
-    "primaryPercent": 40,
-    "backupPercent": 20,
-    "description": "Primary loses 40% capacity (4 SP/cycle), Backup loses 20% (2 SP/cycle)"
+    "primaryPercent": 100,
+    "backupPercent": 50,
+    "description": "Primary loses 100% capacity (10 SP/cycle), Backup loses 50% (5 SP/cycle)"
   },
 
   "teams": {
     "FTS": {
       "members": [
-        { "name": "Sagnik Paul", "role": "BE", "availableDaysPerCycle": 10 },
         { "name": "Tejash Singh", "role": "BE", "availableDaysPerCycle": 10 },
-        { "name": "Tanishq Joshi", "role": "BE", "availableDaysPerCycle": 10 },
-        { "name": "chinmaya.nayak", "role": "BE", "availableDaysPerCycle": 10 },
+        { "name": "Nallamilli Srimanth Reddy", "role": "BE", "availableDaysPerCycle": 10 },
+        { "name": "Abhay Kumar", "role": "BE", "availableDaysPerCycle": 10 },
         { "name": "Prachi Suryawanshi", "role": "BE", "availableDaysPerCycle": 10 },
-        { "name": "Sahana BG", "role": "BE", "availableDaysPerCycle": 10 },
-        { "name": "Dushyant", "role": "BE", "availableDaysPerCycle": 10 },
-        { "name": "Mayank", "role": "BE", "availableDaysPerCycle": 10 },
-        { "name": "Abilash", "role": "BE", "availableDaysPerCycle": 10, "notes": "TL - partial allocation" },
-        { "name": "FE Dev 1", "role": "FE", "availableDaysPerCycle": 10 },
-        { "name": "FE Dev 2", "role": "FE", "availableDaysPerCycle": 10 },
-        { "name": "FE Dev 3", "role": "FE", "availableDaysPerCycle": 10 }
+        { "name": "Dushyant Batra", "role": "BE", "availableDaysPerCycle": 10 },
+        { "name": "Mayank Kumar", "role": "BE", "availableDaysPerCycle": 10 },
+        { "name": "Tanishq Joshi", "role": "BE", "availableDaysPerCycle": 10 },
+        { "name": "BE Dev 8", "role": "BE", "availableDaysPerCycle": 10 },
+        { "name": "Abilash K M", "role": "FE", "availableDaysPerCycle": 10 },
+        { "name": "Rishabh Bothra", "role": "FE", "availableDaysPerCycle": 10 },
+        { "name": "FE Dev 3", "role": "FE", "availableDaysPerCycle": 10 },
+        { "name": "FE Dev 4", "role": "FE", "availableDaysPerCycle": 10 }
       ],
       "onCallRoles": {
         "bePrimary": 1,

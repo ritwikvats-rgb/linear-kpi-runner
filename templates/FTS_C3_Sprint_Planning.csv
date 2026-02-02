@@ -1,0 +1,58 @@
+FTS SPRINT PLANNING - C3 (2026-02-03 to 2026-02-16)
+
+METHODOLOGY
+1 SP (Story Point) is equal to 1 working day of effort for 1 person
+Working days per cycle: 10
+Allocation: 60% Roadmap / 40% Adhoc
+
+CAPACITY CALCULATION
+Metric,Value,Formula
+Team Size,12,BE: 8 + FE: 4
+Gross Working Days,120,12 x 10
+Leave Days,3,Sum of all planned leaves
+On-Call Deduction,30,Primary (100%) + Backup (50%)
+Available SP,87,120 - 3 - 30
+
+SP ALLOCATION
+Category,SP,Percentage
+Roadmap Budget,52,60%
+Adhoc Budget,35,40%
+Total,87,100%
+
+ON-CALL DEDUCTION BREAKDOWN
+Role,Deduction SP,Calculation
+BE Primary,10,10 x 100% (fully on support)
+BE Backup,5,10 x 50%
+FE Primary,10,10 x 100% (fully on support)
+FE Backup,5,10 x 50%
+Total,30,
+
+TEAM MEMBERS
+Name,Role,Available Days,Leave Days,On-Call Role,Net SP
+Tejash Singh,BE,10,0,,10
+Nallamilli Srimanth Reddy,BE,10,0,,10
+Abhay Kumar,BE,10,0,,10
+Prachi Suryawanshi,BE,10,0,,10
+Dushyant Batra,BE,10,0,,10
+Mayank Kumar,BE,10,0,,10
+Tanishq Joshi,BE,10,0,,10
+BE Dev 8,BE,10,0,,10
+Abilash K M,FE,10,0,,10
+Rishabh Bothra,FE,10,0,,10
+FE Dev 3,FE,10,0,,10
+FE Dev 4,FE,10,0,,10
+
+WHAT ADHOC COVERS
+Category,SP Allocated,Why This Amount
+Adhoc BW,35,"Stakeholder requests, urgent features, bugs, support"
+TOTAL ADHOC,35,
+
+ROADMAP TICKETS
+Ticket ID,Initiative,Owner,SP,Status,Completed,Spillover Reason
+(Add tickets here),,,,Backlog,No,
+
+EXECUTION SUMMARY
+Metric,Committed,Completed,Rate
+Roadmap,,,
+Adhoc,,,
+Total,,,

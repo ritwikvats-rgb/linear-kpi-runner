@@ -226,7 +226,7 @@ function generateSprintPlanningCSV(teamName, cycleName, options = {}) {
   lines.push(`Team Size,${capacity.teamSize},BE: ${capacity.beCount} + FE: ${capacity.feCount}`);
   lines.push(`Gross Working Days,${capacity.grossWorkingDays},${capacity.teamSize} x ${capacity.workingDaysPerCycle}`);
   lines.push(`Leave Days,${capacity.leaveDays},Sum of all planned leaves`);
-  lines.push(`On-Call Deduction,${capacity.onCallDeduction},Primary (40%) + Backup (20%)`);
+  lines.push(`On-Call Deduction,${capacity.onCallDeduction},Primary (100%) + Backup (50%)`);
   lines.push(`Available SP,${capacity.availableSP},${capacity.grossWorkingDays} - ${capacity.leaveDays} - ${capacity.onCallDeduction}`);
   lines.push("");
 
@@ -241,10 +241,10 @@ function generateSprintPlanningCSV(teamName, cycleName, options = {}) {
   // On-call deduction breakdown
   lines.push("ON-CALL DEDUCTION BREAKDOWN");
   lines.push("Role,Deduction SP,Calculation");
-  lines.push(`BE Primary,${capacity.onCallBreakdown.bePrimary},${capacity.workingDaysPerCycle} x 40%`);
-  lines.push(`BE Backup,${capacity.onCallBreakdown.beBackup},${capacity.workingDaysPerCycle} x 20%`);
-  lines.push(`FE Primary,${capacity.onCallBreakdown.fePrimary},${capacity.workingDaysPerCycle} x 40%`);
-  lines.push(`FE Backup,${capacity.onCallBreakdown.feBackup},${capacity.workingDaysPerCycle} x 20%`);
+  lines.push(`BE Primary,${capacity.onCallBreakdown.bePrimary},${capacity.workingDaysPerCycle} x 100% (fully on support)`);
+  lines.push(`BE Backup,${capacity.onCallBreakdown.beBackup},${capacity.workingDaysPerCycle} x 50%`);
+  lines.push(`FE Primary,${capacity.onCallBreakdown.fePrimary},${capacity.workingDaysPerCycle} x 100% (fully on support)`);
+  lines.push(`FE Backup,${capacity.onCallBreakdown.feBackup},${capacity.workingDaysPerCycle} x 50%`);
   lines.push(`Total,${capacity.onCallDeduction},`);
   lines.push("");
 
