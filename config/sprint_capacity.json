@@ -1,0 +1,66 @@
+{
+  "version": "2026Q1",
+  "description": "Sprint capacity configuration - 1 SP = 1 working day",
+
+  "quarter": {
+    "name": "Q1 2026",
+    "totalWorkingDays": 60,
+    "cycles": 6,
+    "workingDaysPerCycle": 10
+  },
+
+  "allocation": {
+    "roadmapPercent": 60,
+    "adhocPercent": 40,
+    "description": "60% roadmap work, 40% buffer for adhoc/bugs/support"
+  },
+
+  "onCallDeductions": {
+    "primaryPercent": 40,
+    "backupPercent": 20,
+    "description": "Primary loses 40% capacity (4 SP/cycle), Backup loses 20% (2 SP/cycle)"
+  },
+
+  "teams": {
+    "FTS": {
+      "members": [
+        { "name": "Sagnik Paul", "role": "BE", "availableDaysPerCycle": 10 },
+        { "name": "Tejash Singh", "role": "BE", "availableDaysPerCycle": 10 },
+        { "name": "Tanishq Joshi", "role": "BE", "availableDaysPerCycle": 10 },
+        { "name": "chinmaya.nayak", "role": "BE", "availableDaysPerCycle": 10 },
+        { "name": "Prachi Suryawanshi", "role": "BE", "availableDaysPerCycle": 10 },
+        { "name": "Sahana BG", "role": "BE", "availableDaysPerCycle": 10 },
+        { "name": "Dushyant", "role": "BE", "availableDaysPerCycle": 10 },
+        { "name": "Mayank", "role": "BE", "availableDaysPerCycle": 10 },
+        { "name": "Abilash", "role": "BE", "availableDaysPerCycle": 10, "notes": "TL - partial allocation" },
+        { "name": "FE Dev 1", "role": "FE", "availableDaysPerCycle": 10 },
+        { "name": "FE Dev 2", "role": "FE", "availableDaysPerCycle": 10 },
+        { "name": "FE Dev 3", "role": "FE", "availableDaysPerCycle": 10 }
+      ],
+      "onCallRoles": {
+        "bePrimary": 1,
+        "beBackup": 1,
+        "fePrimary": 1,
+        "feBackup": 1
+      }
+    }
+  },
+
+  "adhocCategories": [
+    { "name": "PR Reviews", "defaultSP": 10, "reason": "Every dev spends ~1 day/sprint on code reviews" },
+    { "name": "Cross-pod Support", "defaultSP": 8, "reason": "Requests from Platform, GTS, other teams" },
+    { "name": "Prod Bugs/Hotfixes", "defaultSP": 8, "reason": "Urgent production issues that can't wait" },
+    { "name": "Adhoc BW", "defaultSP": 10, "reason": "Stakeholder requests, urgent features" },
+    { "name": "Buffer/Contingency", "defaultSP": 6, "reason": "Estimation errors, unknowns" }
+  ],
+
+  "formulas": {
+    "grossWorkingDays": "teamSize x workingDaysPerCycle",
+    "onCallDeduction": "(primaryCount x workingDays x 0.4) + (backupCount x workingDays x 0.2)",
+    "availableSP": "grossWorkingDays - leaveDays - onCallDeduction",
+    "roadmapBudget": "availableSP x 0.6",
+    "adhocBudget": "availableSP x 0.4",
+    "deliveryRate": "(completedSP / committedSP) x 100",
+    "spillover": "committedSP - completedSP"
+  }
+}
