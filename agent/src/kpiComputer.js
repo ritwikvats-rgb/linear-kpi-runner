@@ -955,14 +955,15 @@ function formatPendingDELs(result, isMobile = false) {
   for (const [podName, dels] of Object.entries(byPod)) {
     const rows = dels.map(del => ({
       id: del.identifier,
-      title: truncate(del.title, 35),
+      project: truncate(del.project || "No Project", 25),
+      title: truncate(del.title, 30),
       assignee: del.assignee || "Unassigned",
-      state: del.state,
-      cycle: del.cycle
+      state: del.state
     }));
 
     out += jsonTable(`${podName} (${dels.length} pending)`, [
       { key: "id", header: "ID" },
+      { key: "project", header: "Project" },
       { key: "title", header: "Title" },
       { key: "assignee", header: "Assignee" },
       { key: "state", header: "State" }
