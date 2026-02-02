@@ -1,13 +1,13 @@
 FTS SPRINT PLANNING TEMPLATE - C3 (Feb 2-15 2026)
 ,,,,,,,,
-================================================================================,,,,,,,,
+,,,,,,,,
 SECTION 1: METHODOLOGY & DEFINITIONS,,,,,,,,
-================================================================================,,,,,,,,
+,,,,,,,,
 ,,,,,,,,
 WHY WE USE THIS FRAMEWORK:,,,,,,,,
 "This framework was designed by Utkarsh to solve the problem of tracking effort accurately.",,,,,,,,
 "Previously, we estimated in weeks which didn't translate well to sprint planning.",,,,,,,,
-"By using days (1 SP = 1 working day), we get:",,,,,,,,
+"By using days (1 SP  1 working day), we get:",,,,,,,,
 "  1. Clear visibility into where time goes",,,,,,,,
 "  2. Accurate burn-down of initiative budgets",,,,,,,,
 "  3. Data-driven retros showing why spillover happens",,,,,,,,
@@ -15,24 +15,24 @@ WHY WE USE THIS FRAMEWORK:,,,,,,,,
 CORE DEFINITIONS:,,,,,,,,
 ,,,,,,,,
 Term,Definition,Example,Why It Matters,,,,
-Story Point (SP),"1 SP = 1 working day of effort for 1 person","If a task takes 3 days for 1 dev, it's 3 SP","Standardizes estimation across team",,,,
+Story Point (SP),"1 SP  1 working day of effort for 1 person","If a task takes 3 days for 1 dev, it's 3 SP","Standardizes estimation across team",,,,
 Working Days,"Business days in a cycle, excluding weekends","C3 has 10 working days (Feb 2-15)","Sets the capacity ceiling",,,,
-Available SP,"Working days minus leaves and on-call deductions","10 days - 2 leave - 2 oncall backup = 6 SP","What a person can actually commit to",,,,
+Available SP,"Working days minus leaves and on-call deductions","10 days - 2 leave - 2 oncall backup  6 SP","What a person can actually commit to",,,,
 Roadmap Work,"Planned initiative work from quarterly roadmap","Dynamic Workflows V1, Data-Driven Cohorts","The 60% we commit to stakeholders",,,,
 Adhoc Work,"Unplanned work: bugs, support, cross-pod requests","Prod hotfix, PR reviews, other pod support","The 40% buffer for reality",,,,
-Initiative Budget,"Total effort allocated to a project for the quarter","Communication Module = 60 BE days for Q1","Tracks if we're on pace",,,,
-Spillover,"Work committed but not completed in sprint","Committed 50 SP, completed 40 SP = 10 SP spillover","Measures planning accuracy",,,,
-Delivery Rate,"Percentage of committed work completed","40 completed / 50 committed = 80%","Key performance metric",,,,
+Initiative Budget,"Total effort allocated to a project for the quarter","Communication Module  60 BE days for Q1","Tracks if we're on pace",,,,
+Spillover,"Work committed but not completed in sprint","Committed 50 SP, completed 40 SP  10 SP spillover","Measures planning accuracy",,,,
+Delivery Rate,"Percentage of committed work completed","40 completed / 50 committed  80%","Key performance metric",,,,
 ,,,,,,,,
-================================================================================,,,,,,,,
+,,,,,,,,
 SECTION 2: CAPACITY CALCULATION,,,,,,,,
-================================================================================,,,,,,,,
+,,,,,,,,
 ,,,,,,,,
 HOW WE CALCULATE CAPACITY:,,,,,,,,
 ,,,,,,,,
 "Step 1: Start with gross working days",,,,,,,,
 "  - Each cycle has 10 working days",,,,,,,,
-"  - Team has 12 members = 120 gross days",,,,,,,,
+"  - Team has 12 members  120 gross days",,,,,,,,
 ,,,,,,,,
 "Step 2: Subtract planned leaves",,,,,,,,
 "  - Check leave calendar for each team member",,,,,,,,
@@ -42,28 +42,28 @@ HOW WE CALCULATE CAPACITY:,,,,,,,,
 ,,,,,,,,
 "Step 3: Account for on-call duties",,,,,,,,
 "  WHY: On-call engineers can't commit 100% to roadmap work",,,,,,,,
-"  - Primary On-Call: 40% time on incidents = 4 SP deduction",,,,,,,,
-"  - Backup On-Call: 20% time on support = 2 SP deduction",,,,,,,,
-"  - We have 4 on-call roles (2 BE + 2 FE) = 12 SP total deduction",,,,,,,,
+"  - Primary On-Call: 40% time on incidents  4 SP deduction",,,,,,,,
+"  - Backup On-Call: 20% time on support  2 SP deduction",,,,,,,,
+"  - We have 4 on-call roles (2 BE + 2 FE)  12 SP total deduction",,,,,,,,
 ,,,,,,,,
 "Step 4: Calculate Available SP",,,,,,,,
-"  FORMULA: Available SP = Working Days - Leaves - On-Call Deduction",,,,,,,,
+"  FORMULA: Available SP  Working Days - Leaves - On-Call Deduction",,,,,,,,
 ,,,,,,,,
 CAPACITY TABLE:,,,,,,,,
 ,,,,,,,,
 Name,Role,Working Days,Leaves,On-Call Role,On-Call Deduction,Available SP,Calculation
-Tejash Singh,BE,10,0,Backup,2,8,"=10-0-2 (Backup oncall takes 20% time)"
-Nallamilli Srimanth Reddy,BE,10,0,Primary,4,6,"=10-0-4 (Primary oncall takes 40% time)"
-Abhay Kumar,BE,10,0,-,0,10,"=10-0-0 (No leaves, no oncall)"
-Abilash K M,BE,10,0,-,0,10,"=10-0-0 (No leaves, no oncall)"
-Prachi Suryawanshi,BE,10,0,-,0,10,"=10-0-0 (No leaves, no oncall)"
-Rishabh Bothra,BE,10,0,-,0,10,"=10-0-0 (No leaves, no oncall)"
-Dushyant Batra,BE,10,1,-,0,9,"=10-1-0 (1 day leave on Feb 2)"
-Mayank Kumar,BE,10,3,-,0,7,"=10-3-0 (3 days leave: Feb 4,5,9)"
-Tanishq Joshi,BE,10,0,-,0,10,"=10-0-0 (No leaves, no oncall)"
-Sagnik Paul,FE,10,0,-,0,10,"=10-0-0 (No leaves, no oncall)"
-Sahana BG,FE,10,0,Primary,4,6,"=10-0-4 (FE Primary oncall takes 40% time)"
-Vikram Ganapati Hegde,FE,10,0,Backup,2,8,"=10-0-2 (FE Backup oncall takes 20% time)"
+Tejash Singh,BE,10,0,Backup,2,8,"10-0-2 (Backup oncall takes 20% time)"
+Nallamilli Srimanth Reddy,BE,10,0,Primary,4,6,"10-0-4 (Primary oncall takes 40% time)"
+Abhay Kumar,BE,10,0,-,0,10,"10-0-0 (No leaves, no oncall)"
+Abilash K M,BE,10,0,-,0,10,"10-0-0 (No leaves, no oncall)"
+Prachi Suryawanshi,BE,10,0,-,0,10,"10-0-0 (No leaves, no oncall)"
+Rishabh Bothra,BE,10,0,-,0,10,"10-0-0 (No leaves, no oncall)"
+Dushyant Batra,BE,10,1,-,0,9,"10-1-0 (1 day leave on Feb 2)"
+Mayank Kumar,BE,10,3,-,0,7,"10-3-0 (3 days leave: Feb 4,5,9)"
+Tanishq Joshi,BE,10,0,-,0,10,"10-0-0 (No leaves, no oncall)"
+Sagnik Paul,FE,10,0,-,0,10,"10-0-0 (No leaves, no oncall)"
+Sahana BG,FE,10,0,Primary,4,6,"10-0-4 (FE Primary oncall takes 40% time)"
+Vikram Ganapati Hegde,FE,10,0,Backup,2,8,"10-0-2 (FE Backup oncall takes 20% time)"
 ,,,,,,,,
 TOTALS:,,,,,,,,
 Category,Gross Days,Leaves,On-Call Deduction,Available SP,,,
@@ -71,9 +71,9 @@ BE Team (9 people),90,4,6,80,,,
 FE Team (3 people),30,0,6,24,,,
 GRAND TOTAL,120,4,12,104,,,
 ,,,,,,,,
-================================================================================,,,,,,,,
+,,,,,,,,
 SECTION 3: WORK ALLOCATION (60/40 SPLIT),,,,,,,,
-================================================================================,,,,,,,,
+,,,,,,,,
 ,,,,,,,,
 WHY 60/40 SPLIT:,,,,,,,,
 "Based on historical data and team feedback:",,,,,,,,
@@ -86,14 +86,14 @@ WHY 60/40 SPLIT:,,,,,,,,
 "    - On-call incident response (already deducted but buffer helps)",,,,,,,,
 ,,,,,,,,
 HOW WE CALCULATE:,,,,,,,,
-"  Roadmap Budget = Total Available SP × 60%",,,,,,,,
-"  Adhoc Budget = Total Available SP × 40%",,,,,,,,
+"  Roadmap Budget  Total Available SP x 60%",,,,,,,,
+"  Adhoc Budget  Total Available SP x 40%",,,,,,,,
 ,,,,,,,,
 ALLOCATION TABLE:,,,,,,,,
 ,,,,,,,,
 Work Type,Percentage,Formula,SP Budget,Description,,,
-Roadmap (incl on-call),60%,=104 × 0.60,62,"Initiative work, features, planned deliverables",,,
-Adhoc (buffer),40%,=104 × 0.40,42,"Bugs, support, PR reviews, unplanned work",,,
+Roadmap (incl on-call),60%,104 x 0.60,62,"Initiative work, features, planned deliverables",,,
+Adhoc (buffer),40%,104 x 0.40,42,"Bugs, support, PR reviews, unplanned work",,,
 TOTAL,100%,,104,,,,
 ,,,,,,,,
 BE/FE BREAKDOWN:,,,,,,,,
@@ -104,9 +104,9 @@ Roadmap (60%),48,14,62,,,
 Adhoc (40%),32,10,42,,,
 Total,80,24,104,,,
 ,,,,,,,,
-================================================================================,,,,,,,,
+,,,,,,,,
 SECTION 4: ON-CALL ROTATION,,,,,,,,
-================================================================================,,,,,,,,
+,,,,,,,,
 ,,,,,,,,
 WHY ON-CALL DEDUCTION:,,,,,,,,
 "On-call engineers must be available for production incidents.",,,,,,,,
@@ -123,9 +123,9 @@ BE Backup Oncall,Tejash Singh,Abhay Kumar,Prachi Suryawanshi,Dushyant Batra,,,,
 FE Primary Oncall,Sahana BG,Vikram Ganapati Hegde,Abilash K M,Rishabh Bothra,,,,
 FE Backup Oncall,Vikram Ganapati Hegde,Abilash K M,Rishabh Bothra,Sahana BG,,,,
 ,,,,,,,,
-================================================================================,,,,,,,,
+,,,,,,,,
 SECTION 5: ROADMAP COMMITMENTS (62 SP BUDGET),,,,,,,,
-================================================================================,,,,,,,,
+,,,,,,,,
 ,,,,,,,,
 HOW INITIATIVE BURN-DOWN WORKS:,,,,,,,,
 "1. Each initiative gets a Q1 budget in days (from roadmap planning)",,,,,,,,
@@ -138,7 +138,7 @@ EXAMPLE:,,,,,,,,
 "  C1 used: 3 SP",,,,,,,,
 "  C2 used: 4 SP",,,,,,,,
 "  C3 committing: 3 SP",,,,,,,,
-"  Remaining: 10 - 3 - 4 - 3 = 0 SP (on track!)",,,,,,,,
+"  Remaining: 10 - 3 - 4 - 3  0 SP (on track!)",,,,,,,,
 ,,,,,,,,
 WHY TRACK THIS:,,,,,,,,
 "  - Prevents over-committing to one initiative",,,,,,,,
@@ -148,24 +148,24 @@ WHY TRACK THIS:,,,,,,,,
 INITIATIVE TRACKER:,,,,,,,,
 ,,,,,,,,
 Initiative,Q1 Budget (BE),Q1 Budget (FE),C1 Used,C2 Used,C3 Commit,Remaining,Formula
-Dynamic Workflows V1,15,5,5,5,,,"=B-D-E-F (Should trend to 0 by Q1 end)"
-Data-Driven Cohorts & automations,10,10,3,4,,,"=B-D-E-F"
-Tagging System V2,12,0,0,4,,,"=B-D-E-F"
-Interface Express V2,10,0,0,5,,,"=B-D-E-F"
-FTS Evals manual actions,8,0,3,3,,,"=B-D-E-F"
-Improved Product Guidance,6,4,0,3,,,"=B-D-E-F"
-QC Export,5,0,2,2,,,"=B-D-E-F"
-Customer-facing product experience,8,6,0,0,,,"=B-D-E-F"
-Contributor Communications,5,5,0,0,,,"=B-D-E-F"
-Recovery of Cancelled Jobs,5,0,0,0,,,"=B-D-E-F"
+Dynamic Workflows V1,15,5,5,5,,,"B-D-E-F (Should trend to 0 by Q1 end)"
+Data-Driven Cohorts & automations,10,10,3,4,,,"B-D-E-F"
+Tagging System V2,12,0,0,4,,,"B-D-E-F"
+Interface Express V2,10,0,0,5,,,"B-D-E-F"
+FTS Evals manual actions,8,0,3,3,,,"B-D-E-F"
+Improved Product Guidance,6,4,0,3,,,"B-D-E-F"
+QC Export,5,0,2,2,,,"B-D-E-F"
+Customer-facing product experience,8,6,0,0,,,"B-D-E-F"
+Contributor Communications,5,5,0,0,,,"B-D-E-F"
+Recovery of Cancelled Jobs,5,0,0,0,,,"B-D-E-F"
 ,,,,,,,,
 TOTAL Q1 BUDGET,84,30,13,21,,,
 C3 COMMITTED,,,,,0,,"Fill during planning"
 ROADMAP BUDGET CHECK,,,,,62,,"Max you can commit"
 ,,,,,,,,
-================================================================================,,,,,,,,
+,,,,,,,,
 SECTION 6: ADHOC BUFFER (42 SP BUDGET),,,,,,,,
-================================================================================,,,,,,,,
+,,,,,,,,
 ,,,,,,,,
 WHAT ADHOC COVERS:,,,,,,,,
 ,,,,,,,,
@@ -183,9 +183,9 @@ HOW TO USE ADHOC BUDGET:,,,,,,,,
 "3. If adhoc exceeds 42 SP, roadmap work will spill",,,,,,,,
 "4. Review in retro: was 40% enough? Too much?",,,,,,,,
 ,,,,,,,,
-================================================================================,,,,,,,,
+,,,,,,,,
 SECTION 7: SPRINT EXECUTION TRACKER,,,,,,,,
-================================================================================,,,,,,,,
+,,,,,,,,
 ,,,,,,,,
 HOW TO USE THIS TRACKER:,,,,,,,,
 "1. Add all committed tickets at sprint start",,,,,,,,
@@ -214,17 +214,17 @@ FTS-3541,Data-Driven Cohorts,Prachi Suryawanshi,,In Review,,,Roadmap
 ,,,,,,,,Adhoc
 ,,,,,,,,Adhoc
 ,,,,,,,,
-================================================================================,,,,,,,,
+,,,,,,,,
 SECTION 8: SPRINT SUMMARY & METRICS,,,,,,,,
-================================================================================,,,,,,,,
+,,,,,,,,
 ,,,,,,,,
 KEY METRICS EXPLAINED:,,,,,,,,
 ,,,,,,,,
 Metric,Formula,What It Tells You,Target
-Delivery Rate,Completed SP / Committed SP × 100,"How much of what we promised did we deliver?",>80%
+Delivery Rate,Completed SP / Committed SP x 100,"How much of what we promised did we deliver?",>80%
 Spillover,Committed SP - Completed SP,"How much work didn't get done?",<10 SP
-Utilization,Committed SP / Available SP × 100,"Are we using our capacity well?",>90%
-Roadmap Delivery,Completed Roadmap SP / Committed Roadmap SP × 100,"Are we hitting our initiative commitments?",>80%
+Utilization,Committed SP / Available SP x 100,"Are we using our capacity well?",>90%
+Roadmap Delivery,Completed Roadmap SP / Committed Roadmap SP x 100,"Are we hitting our initiative commitments?",>80%
 ,,,,,,,,
 WHY THESE TARGETS:,,,,,,,,
 "  - 80% Delivery Rate: Allows for unknowns while being accountable",,,,,,,,
@@ -235,9 +235,9 @@ SUMMARY TABLE:,,,,,,,,
 ,,,,,,,,
 CAPACITY,Value,Notes,,,,
 Total Team Size,12,BE: 9 + FE: 3,,,,
-Gross Working Days,120,12 × 10 days,,,,
+Gross Working Days,120,12 x 10 days,,,,
 Leave Days,4,Dushyant(1) + Mayank(3),,,,
-On-Call Deduction,12,4 roles × avg 3 SP,,,,
+On-Call Deduction,12,4 roles x avg 3 SP,,,,
 Net Available SP,104,120 - 4 - 12,,,,
 ,,,,,,,,
 ALLOCATION,SP,%,,,,,
@@ -246,9 +246,9 @@ Adhoc Budget,42,40%,,,,,
 Total,104,100%,,,,,
 ,,,,,,,,
 EXECUTION (Fill at end),Committed,Completed,Delivery %,,,,
-Roadmap,,,=C/B×100,,,,
-Adhoc,,,=C/B×100,,,,
-Total,,,=C/B×100,,,,
+Roadmap,,,C/Bx100,,,,
+Adhoc,,,C/Bx100,,,,
+Total,,,C/Bx100,,,,
 ,,,,,,,,
 SPILLOVER ANALYSIS,Count,SP,Top Reason,,,,
 Scope Change,,,,,,,
@@ -258,26 +258,26 @@ Resource Issue,,,,,,,
 Priority Change,,,,,,,
 TOTAL SPILLOVER,,,,,,,
 ,,,,,,,,
-================================================================================,,,,,,,,
+,,,,,,,,
 SECTION 9: FORMULAS REFERENCE,,,,,,,,
-================================================================================,,,,,,,,
+,,,,,,,,
 ,,,,,,,,
 ALL FORMULAS USED:,,,,,,,,
 ,,,,,,,,
 Calculation,Formula,Google Sheets Formula,,,,
-Available SP per person,Working Days - Leaves - OnCall,=C2-D2-F2,,,,
-Total BE Capacity,Sum of BE Available SP,=SUMIF(B:B,"BE",G:G),,,,
-Total FE Capacity,Sum of FE Available SP,=SUMIF(B:B,"FE",G:G),,,,
-Roadmap Budget,Total Capacity × 60%,=G_Total * 0.60,,,,
-Adhoc Budget,Total Capacity × 40%,=G_Total * 0.40,,,,
-Initiative Remaining,Budget - C1 - C2 - C3,=B2-D2-E2-F2,,,,
-Delivery Rate,Completed / Committed × 100,=IF(B2>0,C2/B2*100,0),,,,
-Spillover,Committed - Completed,=Committed - Completed,,,,
-Utilization,Committed / Available × 100,=IF(Available>0,Committed/Available*100,0),,,,
+Available SP per person,Working Days - Leaves - OnCall,C2-D2-F2,,,,
+Total BE Capacity,Sum of BE Available SP,SUMIF(B:B,"BE",G:G),,,,
+Total FE Capacity,Sum of FE Available SP,SUMIF(B:B,"FE",G:G),,,,
+Roadmap Budget,Total Capacity x 60%,G_Total * 0.60,,,,
+Adhoc Budget,Total Capacity x 40%,G_Total * 0.40,,,,
+Initiative Remaining,Budget - C1 - C2 - C3,B2-D2-E2-F2,,,,
+Delivery Rate,Completed / Committed x 100,IF(B2>0,C2/B2*100,0),,,,
+Spillover,Committed - Completed,Committed - Completed,,,,
+Utilization,Committed / Available x 100,IF(Available>0,Committed/Available*100,0),,,,
 ,,,,,,,,
-================================================================================,,,,,,,,
+,,,,,,,,
 SECTION 10: CHECKLIST FOR EM MEETING,,,,,,,,
-================================================================================,,,,,,,,
+,,,,,,,,
 ,,,,,,,,
 PRE-SPRINT PLANNING CHECKLIST:,,,,,,,,
 ,,,,,,,,
