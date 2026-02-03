@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spillover Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      min-height: 100vh;
+      color: #e2e8f0;
+    }
+
+    .header {
+      background: rgba(30, 41, 59, 0.8);
+      backdrop-filter: blur(10px);
+      padding: 1rem 2rem;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      background: linear-gradient(90deg, #60a5fa, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .cycle-selector {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .cycle-btn {
+      padding: 0.5rem 1rem;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      border-radius: 8px;
+      background: rgba(51, 65, 85, 0.5);
+      color: #e2e8f0;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .cycle-btn:hover {
+      background: rgba(71, 85, 105, 0.7);
+    }
+
+    .cycle-btn.active {
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      border-color: transparent;
+    }
+
+    .container {
+      padding: 2rem;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    .hero-metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .metric-card {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(148, 163, 184, 0.1);
+      border-radius: 12px;
+      padding: 1.5rem;
+      text-align: center;
+    }
+
+    .metric-card .value {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .metric-card .label {
+      font-size: 0.875rem;
+      color: #94a3b8;
+    }
+
+    .metric-card.success .value { color: #22c55e; }
+    .metric-card.warning .value { color: #f59e0b; }
+    .metric-card.danger .value { color: #ef4444; }
+    .metric-card.info .value { color: #3b82f6; }
+
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .chart-card {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(148, 163, 184, 0.1);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+
+    .chart-card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: #f1f5f9;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 300px;
+    }
+
+    .spillover-table {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(148, 163, 184, 0.1);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .spillover-table h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: #f1f5f9;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    }
+
+    th {
+      font-weight: 600;
+      color: #94a3b8;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+    }
+
+    tbody tr:hover {
+      background: rgba(51, 65, 85, 0.3);
+    }
+
+    .pod-name {
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .pod-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .delivery-bar {
+      width: 100px;
+      height: 8px;
+      background: rgba(148, 163, 184, 0.2);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .delivery-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.5s ease;
+    }
+
+    .spillover-details {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(148, 163, 184, 0.1);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+
+    .spillover-details h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: #f1f5f9;
+    }
+
+    .pod-section {
+      margin-bottom: 1.5rem;
+    }
+
+    .pod-section h4 {
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      padding: 0.5rem;
+      background: rgba(51, 65, 85, 0.5);
+      border-radius: 6px;
+    }
+
+    .del-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+      font-size: 0.875rem;
+    }
+
+    .del-item:last-child {
+      border-bottom: none;
+    }
+
+    .del-id {
+      font-family: monospace;
+      color: #60a5fa;
+    }
+
+    .del-title {
+      flex: 1;
+      margin-left: 1rem;
+      color: #e2e8f0;
+    }
+
+    .del-assignee {
+      color: #94a3b8;
+    }
+
+    .del-status {
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .del-status.in-progress { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+    .del-status.todo { background: rgba(148, 163, 184, 0.2); color: #94a3b8; }
+    .del-status.review { background: rgba(168, 85, 247, 0.2); color: #a78bfa; }
+    .del-status.done { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
+
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 200px;
+      color: #94a3b8;
+    }
+
+    .refresh-btn {
+      padding: 0.5rem 1rem;
+      background: rgba(51, 65, 85, 0.5);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      border-radius: 8px;
+      color: #e2e8f0;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .refresh-btn:hover {
+      background: rgba(71, 85, 105, 0.7);
+    }
+
+    .timestamp {
+      font-size: 0.75rem;
+      color: #64748b;
+      text-align: right;
+      margin-top: 1rem;
+    }
+
+    @media (max-width: 1024px) {
+      .charts-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Spillover Dashboard</h1>
+    <div style="display: flex; gap: 1rem; align-items: center;">
+      <div class="cycle-selector" id="cycleSelector">
+        <button class="cycle-btn" data-cycle="C1">C1</button>
+        <button class="cycle-btn" data-cycle="C2">C2</button>
+        <button class="cycle-btn active" data-cycle="C3">C3</button>
+        <button class="cycle-btn" data-cycle="C4">C4</button>
+        <button class="cycle-btn" data-cycle="C5">C5</button>
+        <button class="cycle-btn" data-cycle="C6">C6</button>
+      </div>
+      <button class="refresh-btn" onclick="loadData()">Refresh</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Hero Metrics -->
+    <div class="hero-metrics" id="heroMetrics">
+      <div class="metric-card info">
+        <div class="value" id="totalCommitted">--</div>
+        <div class="label">Total Committed</div>
+      </div>
+      <div class="metric-card success">
+        <div class="value" id="totalCompleted">--</div>
+        <div class="label">Completed</div>
+      </div>
+      <div class="metric-card warning">
+        <div class="value" id="totalSpillover">--</div>
+        <div class="label">Spillover</div>
+      </div>
+      <div class="metric-card" id="deliveryCard">
+        <div class="value" id="deliveryPct">--</div>
+        <div class="label">Delivery Rate</div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Delivery % by Pod</h3>
+        <div class="chart-container">
+          <canvas id="deliveryChart"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>Spillover Breakdown</h3>
+        <div class="chart-container">
+          <canvas id="spilloverPieChart"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>Spillover Trend Across Cycles</h3>
+        <div class="chart-container">
+          <canvas id="spilloverTrendChart"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>Spillover by Cycle (Stacked)</h3>
+        <div class="chart-container">
+          <canvas id="spilloverStackedChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary Table -->
+    <div class="spillover-table">
+      <h3>Pod Summary</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Pod</th>
+            <th>Committed</th>
+            <th>Completed</th>
+            <th>Spillover</th>
+            <th>Delivery %</th>
+            <th>Progress</th>
+          </tr>
+        </thead>
+        <tbody id="summaryTable">
+          <tr><td colspan="6" class="loading">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Spillover Details -->
+    <div class="spillover-details">
+      <h3>Spillover DELs Details</h3>
+      <div id="spilloverDetails">
+        <div class="loading">Loading...</div>
+      </div>
+    </div>
+
+    <div class="timestamp" id="timestamp"></div>
+  </div>
+
+  <script>
+    const POD_COLORS = {
+      ML: "#ef4444",
+      "Control Center": "#f97316",
+      BTS: "#eab308",
+      FTS: "#22c55e",
+      GTS: "#14b8a6",
+      Platform: "#3b82f6",
+      FOT: "#6366f1",
+      "Talent Studio": "#8b5cf6",
+      "Growth & Reuse": "#ec4899",
+    };
+
+    let charts = {};
+    let currentCycle = "C3";
+    let allCyclesData = null;
+
+    // Initialize cycle buttons
+    document.querySelectorAll('.cycle-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelector('.cycle-btn.active').classList.remove('active');
+        btn.classList.add('active');
+        currentCycle = btn.dataset.cycle;
+        if (allCyclesData) {
+          renderCycleData(allCyclesData.cycles[currentCycle]);
+        }
+      });
+    });
+
+    // Load data
+    async function loadData() {
+      try {
+        // Fetch all cycles data
+        const allRes = await fetch('/api/spillover/all');
+        allCyclesData = await allRes.json();
+
+        if (allCyclesData.success) {
+          // Render current cycle
+          renderCycleData(allCyclesData.cycles[currentCycle]);
+
+          // Render trend charts
+          renderTrendCharts(allCyclesData);
+        }
+
+        document.getElementById('timestamp').textContent = `Last updated: ${new Date().toLocaleString()}`;
+      } catch (err) {
+        console.error('Error loading data:', err);
+      }
+    }
+
+    function renderCycleData(data) {
+      if (!data || !data.success) {
+        return;
+      }
+
+      // Update hero metrics
+      document.getElementById('totalCommitted').textContent = data.totals.committed;
+      document.getElementById('totalCompleted').textContent = data.totals.completed;
+      document.getElementById('totalSpillover').textContent = data.totals.spillover;
+      document.getElementById('deliveryPct').textContent = data.totals.deliveryPct + '%';
+
+      // Update delivery card color
+      const deliveryCard = document.getElementById('deliveryCard');
+      deliveryCard.classList.remove('success', 'warning', 'danger');
+      if (data.totals.deliveryPct >= 80) {
+        deliveryCard.classList.add('success');
+      } else if (data.totals.deliveryPct >= 60) {
+        deliveryCard.classList.add('warning');
+      } else {
+        deliveryCard.classList.add('danger');
+      }
+
+      // Render summary table
+      renderSummaryTable(data.pods);
+
+      // Render delivery chart
+      renderDeliveryChart(data.pods);
+
+      // Render spillover pie chart
+      renderSpilloverPieChart(data.pods);
+
+      // Render spillover details
+      renderSpilloverDetails(data.pods);
+    }
+
+    function renderSummaryTable(pods) {
+      const tbody = document.getElementById('summaryTable');
+      tbody.innerHTML = pods.map(pod => `
+        <tr>
+          <td>
+            <div class="pod-name">
+              <span class="pod-dot" style="background: ${POD_COLORS[pod.pod] || '#64748b'}"></span>
+              ${pod.pod}
+            </div>
+          </td>
+          <td>${pod.committed}</td>
+          <td>${pod.completed}</td>
+          <td>${pod.spillover}</td>
+          <td>${pod.deliveryPct}%</td>
+          <td>
+            <div class="delivery-bar">
+              <div class="delivery-bar-fill" style="width: ${pod.deliveryPct}%; background: ${getDeliveryColor(pod.deliveryPct)}"></div>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function getDeliveryColor(pct) {
+      if (pct >= 80) return '#22c55e';
+      if (pct >= 60) return '#f59e0b';
+      return '#ef4444';
+    }
+
+    function renderDeliveryChart(pods) {
+      const ctx = document.getElementById('deliveryChart').getContext('2d');
+
+      if (charts.delivery) {
+        charts.delivery.destroy();
+      }
+
+      const sortedPods = [...pods].sort((a, b) => b.deliveryPct - a.deliveryPct);
+
+      charts.delivery = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: sortedPods.map(p => p.pod),
+          datasets: [{
+            label: 'Delivery %',
+            data: sortedPods.map(p => p.deliveryPct),
+            backgroundColor: sortedPods.map(p => POD_COLORS[p.pod] || '#64748b'),
+            borderRadius: 6,
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              max: 100,
+              grid: { color: 'rgba(148, 163, 184, 0.1)' },
+              ticks: { color: '#94a3b8' }
+            },
+            y: {
+              grid: { display: false },
+              ticks: { color: '#e2e8f0' }
+            }
+          }
+        }
+      });
+    }
+
+    function renderSpilloverPieChart(pods) {
+      const ctx = document.getElementById('spilloverPieChart').getContext('2d');
+
+      if (charts.spilloverPie) {
+        charts.spilloverPie.destroy();
+      }
+
+      const podsWithSpillover = pods.filter(p => p.spillover > 0);
+
+      if (podsWithSpillover.length === 0) {
+        ctx.font = '14px sans-serif';
+        ctx.fillStyle = '#94a3b8';
+        ctx.textAlign = 'center';
+        ctx.fillText('No spillover!', ctx.canvas.width / 2, ctx.canvas.height / 2);
+        return;
+      }
+
+      charts.spilloverPie = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: podsWithSpillover.map(p => p.pod),
+          datasets: [{
+            data: podsWithSpillover.map(p => p.spillover),
+            backgroundColor: podsWithSpillover.map(p => POD_COLORS[p.pod] || '#64748b'),
+            borderWidth: 2,
+            borderColor: '#1e293b',
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: { color: '#e2e8f0' }
+            }
+          }
+        }
+      });
+    }
+
+    function renderSpilloverDetails(pods) {
+      const container = document.getElementById('spilloverDetails');
+
+      const podsWithSpillover = pods.filter(p => p.spillover > 0 && p.spilloverDELs?.length > 0);
+
+      if (podsWithSpillover.length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: #22c55e; padding: 2rem;">No spillover DELs!</div>';
+        return;
+      }
+
+      container.innerHTML = podsWithSpillover.map(pod => `
+        <div class="pod-section">
+          <h4 style="color: ${POD_COLORS[pod.pod] || '#64748b'}">${pod.pod} (${pod.spillover} DELs)</h4>
+          ${pod.spilloverDELs.map(del => `
+            <div class="del-item">
+              <span class="del-id">${del.id}</span>
+              <span class="del-title">${del.title}</span>
+              <span class="del-assignee">${del.assignee}</span>
+              <span class="del-status ${getStatusClass(del.state)}">${del.state}</span>
+            </div>
+          `).join('')}
+        </div>
+      `).join('');
+    }
+
+    function getStatusClass(state) {
+      const lower = state.toLowerCase();
+      if (lower.includes('progress')) return 'in-progress';
+      if (lower.includes('todo') || lower.includes('backlog')) return 'todo';
+      if (lower.includes('review')) return 'review';
+      if (lower.includes('done') || lower.includes('complete')) return 'done';
+      return '';
+    }
+
+    function renderTrendCharts(allData) {
+      const cycles = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6'];
+      const pods = Object.keys(POD_COLORS);
+
+      // Spillover Trend Line Chart
+      const trendCtx = document.getElementById('spilloverTrendChart').getContext('2d');
+      if (charts.trend) charts.trend.destroy();
+
+      const trendDatasets = pods.map(pod => {
+        const data = cycles.map(c => {
+          const cycleData = allData.cycles[c];
+          if (!cycleData?.success) return null;
+          const podData = cycleData.pods?.find(p => p.pod === pod);
+          if (!podData || podData.committed === 0) return null;
+          return podData.spillover;
+        });
+
+        return {
+          label: pod,
+          data,
+          borderColor: POD_COLORS[pod],
+          backgroundColor: POD_COLORS[pod] + '20',
+          fill: false,
+          tension: 0.4,
+          pointRadius: 5,
+          spanGaps: false,
+        };
+      });
+
+      charts.trend = new Chart(trendCtx, {
+        type: 'line',
+        data: {
+          labels: cycles,
+          datasets: trendDatasets
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { color: '#e2e8f0', usePointStyle: true }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(148, 163, 184, 0.1)' },
+              ticks: { color: '#94a3b8' }
+            },
+            y: {
+              beginAtZero: true,
+              grid: { color: 'rgba(148, 163, 184, 0.1)' },
+              ticks: { color: '#94a3b8' }
+            }
+          }
+        }
+      });
+
+      // Stacked Bar Chart
+      const stackedCtx = document.getElementById('spilloverStackedChart').getContext('2d');
+      if (charts.stacked) charts.stacked.destroy();
+
+      const stackedDatasets = pods.map(pod => {
+        const data = cycles.map(c => {
+          const cycleData = allData.cycles[c];
+          if (!cycleData?.success) return 0;
+          const podData = cycleData.pods?.find(p => p.pod === pod);
+          return podData?.spillover || 0;
+        });
+
+        return {
+          label: pod,
+          data,
+          backgroundColor: POD_COLORS[pod],
+          borderRadius: 4,
+        };
+      });
+
+      charts.stacked = new Chart(stackedCtx, {
+        type: 'bar',
+        data: {
+          labels: cycles,
+          datasets: stackedDatasets
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { color: '#e2e8f0', usePointStyle: true }
+            }
+          },
+          scales: {
+            x: {
+              stacked: true,
+              grid: { display: false },
+              ticks: { color: '#94a3b8' }
+            },
+            y: {
+              stacked: true,
+              beginAtZero: true,
+              grid: { color: 'rgba(148, 163, 184, 0.1)' },
+              ticks: { color: '#94a3b8' }
+            }
+          }
+        }
+      });
+    }
+
+    // Load data on page load
+    loadData();
+
+    // Auto-refresh every 5 minutes
+    setInterval(loadData, 5 * 60 * 1000);
+  </script>
+</body>
+</html>

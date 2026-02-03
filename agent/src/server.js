@@ -10,6 +10,13 @@ const { answer } = require("./answerer");
 const { getChartData, getPodDetailData } = require("./chartDataService");
 const { generateChartInsights } = require("./chartInsights");
 const { generateChartNarration } = require("./chartNarration");
+const {
+  getSpilloverByCycle,
+  getCurrentCycleSpillover,
+  getAllCyclesSpillover,
+  getSpilloverChartData,
+  getPodSpilloverSummary,
+} = require("./spilloverService");
 const { SlackClient } = require("./slackClient");
 const { LinearClient } = require("./linearClient");
 const { ProjectChannelMapper } = require("./projectChannelMapper");
@@ -128,6 +135,83 @@ app.get("/api/charts/pod/:podName", async (req, res) => {
   }
 });
 
+// ============== SPILLOVER ENDPOINTS ==============
+
+// Get spillover data for current cycle
+app.get("/api/spillover/current", async (req, res) => {
+  try {
+    const data = await getCurrentCycleSpillover();
+    res.json(data);
+  } catch (err) {
+    console.error("Error fetching current spillover:", err);
+    res.status(500).json({
+      success: false,
+      error: "SPILLOVER_ERROR",
+      message: err.message || "Failed to fetch spillover data"
+    });
+  }
+});
+
+// Get spillover data for a specific cycle
+app.get("/api/spillover/cycle/:cycleKey", async (req, res) => {
+  try {
+    const data = await getSpilloverByCycle(req.params.cycleKey);
+    res.json(data);
+  } catch (err) {
+    console.error("Error fetching cycle spillover:", err);
+    res.status(500).json({
+      success: false,
+      error: "SPILLOVER_ERROR",
+      message: err.message || "Failed to fetch spillover data"
+    });
+  }
+});
+
+// Get spillover data for all cycles (for charts)
+app.get("/api/spillover/all", async (req, res) => {
+  try {
+    const data = await getAllCyclesSpillover();
+    res.json(data);
+  } catch (err) {
+    console.error("Error fetching all spillover:", err);
+    res.status(500).json({
+      success: false,
+      error: "SPILLOVER_ERROR",
+      message: err.message || "Failed to fetch spillover data"
+    });
+  }
+});
+
+// Get spillover chart data (formatted for charts)
+app.get("/api/spillover/charts", async (req, res) => {
+  try {
+    const data = await getSpilloverChartData();
+    res.json(data);
+  } catch (err) {
+    console.error("Error fetching spillover charts:", err);
+    res.status(500).json({
+      success: false,
+      error: "SPILLOVER_CHART_ERROR",
+      message: err.message || "Failed to fetch spillover charts"
+    });
+  }
+});
+
+// Get spillover summary for a specific pod
+app.get("/api/spillover/pod/:podName", async (req, res) => {
+  try {
+    const data = await getPodSpilloverSummary(req.params.podName);
+    res.json(data);
+  } catch (err) {
+    console.error("Error fetching pod spillover:", err);
+    res.status(500).json({
+      success: false,
+      error: "POD_SPILLOVER_ERROR",
+      message: err.message || "Failed to fetch pod spillover"
+    });
+  }
+});
+
 // ============== SLACK INTEGRATION ENDPOINTS ==============
 
 // Initialize Slack/Linear clients (lazy)
@@ -238,6 +322,15 @@ app.get("/kpi-dashboard", (req, res) => {
   res.sendFile(path.join(__dirname, "../public/hud-dashboard.html"));
 });
 
+// Spillover dashboard
+app.get("/spillover", (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/spillover-dashboard.html"));
+});
+
+app.get("/spillover-dashboard", (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/spillover-dashboard.html"));
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`
@@ -247,10 +340,14 @@ app.listen(PORT, () => {
 ║                                                            ║
 ║   Open in your browser:  http://localhost:${PORT}            ║
 ║                                                            ║
-║   Try asking:                                              ║
-║   • "What's going on across all pods?"                     ║
-║   • "What's the status of FTS?"                            ║
-║   • "Show me DELs in cycle C1"                             ║
+║   Dashboards:                                              ║
+║   • http://localhost:${PORT}/dashboard    - HUD Dashboard    ║
+║   • http://localhost:${PORT}/spillover    - Spillover Tracker║
+║                                                            ║
+║   APIs:                                                    ║
+║   • /api/spillover/current  - Current cycle spillover      ║
+║   • /api/spillover/cycle/C2 - Specific cycle spillover     ║
+║   • /api/spillover/charts   - Chart data                   ║
 ║                                                            ║
 ║   Press Ctrl+C to stop                                     ║
 ║                                                            ║
