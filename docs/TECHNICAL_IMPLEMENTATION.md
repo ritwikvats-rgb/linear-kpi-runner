@@ -605,12 +605,13 @@ query ProjectsByInitiative($initiativeId: ID!) {
 
 | Cycles | Freeze Timing |
 |--------|---------------|
-| C1, C2 | After end of C2 (adoption grace period) |
-| C3-C6 | At their own cycle end |
+| C1-C6 (Q1) | After end of C6 (full Q1 grace period for adoption) |
+| Q2+ | TBD - Will have its own policy |
 
 **Rules:**
 - While not frozen: Snapshots can be refreshed (late labeling OK)
 - Once frozen: `committedCount` becomes permanent
+- Q1 grace period allows teams to adopt DEL labeling throughout the quarter
 
 ---
 

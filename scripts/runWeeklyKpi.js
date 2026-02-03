@@ -24,14 +24,14 @@
  *  - committed_snapshot comes from SQLite so we don't lose history
  *
  * Adoption grace (late labeling):
- *  - Until the end of C2, snapshots for C1 and C2 are allowed to refresh.
- *    This allows "someone forgot DEL label earlier" to still count for C1/C2.
- *  - After end of C2, C1 and C2 snapshots freeze permanently.
- *  - For C3+ snapshots freeze at their own cycle end.
+ *  - Until the end of C6, snapshots for C1-C6 are allowed to refresh.
+ *    This allows "someone forgot DEL label earlier" to still count.
+ *  - After end of C6 (Q1 ends), all Q1 snapshots freeze permanently.
+ *  - Q2 will have its own freeze policy.
  *
  * Config knobs:
  *  - KPI_CYCLE=C1..C6 (optional) override printed cycle table
- *  - FREEZE_POLICY_CYCLE=C2 (default) meaning C1/C2 freeze after C2 ends
+ *  - FREEZE_POLICY_CYCLE=C6 (default) meaning C1-C6 freeze after C6 ends (full Q1 grace period)
  */
 
 require("dotenv").config();
@@ -64,7 +64,7 @@ if (!LINEAR_API_KEY) {
 }
 
 const KPI_CYCLE_OVERRIDE = process.env.KPI_CYCLE; // e.g. C1..C6
-const FREEZE_POLICY_CYCLE = (process.env.FREEZE_POLICY_CYCLE || "C2").toUpperCase(); // default C2
+const FREEZE_POLICY_CYCLE = (process.env.FREEZE_POLICY_CYCLE || "C6").toUpperCase(); // default C6 (full Q1 grace)
 
 const GQL_URL = "https://api.linear.app/graphql";
 const OUT_DIR = path.join(process.cwd(), "out");
@@ -683,7 +683,7 @@ async function main() {
   console.log(`Org: ${org.name} (urlKey=${org.urlKey}, orgId=${org.id})`);
   console.log(`DB: ${DB_PATH}`);
   console.log(`Spillover policy: ACTIVE cycle => 0, CLOSED cycle => committed_snapshot - completed_by_end`);
-  console.log(`Freeze policy: C1/C2 freeze after end of ${FREEZE_POLICY_CYCLE} (default C2). C3+ freeze at their end.`);
+  console.log(`Freeze policy: All Q1 cycles (C1-C6) freeze after end of ${FREEZE_POLICY_CYCLE}. Full quarter grace period for adoption.`);
 
   for (const [podName, pod] of Object.entries(podsResolved)) {
     console.log(`Pod: ${podName} | initiativeFound=${pod.initiativeId ? "YES" : "NO"} | projects=${pod.projects?.length || 0}`);
