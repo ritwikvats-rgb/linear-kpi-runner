@@ -534,6 +534,163 @@ async function getLivePodSummary(podName) {
 }
 
 /**
+ * Get adhoc issues for a pod
+ * Checks both adhoc projects (name contains "Adhoc") and adhoc labels
+ */
+async function getAdhocIssues(podName) {
+  const config = getConfig();
+  const pod = getPod(config, podName);
+
+  if (!pod) {
+    const suggestion = fuzzyMatchPod(config, podName);
+    return {
+      success: false,
+      error: "POD_NOT_FOUND",
+      message: `Pod "${podName}" not found`,
+      suggestion,
+    };
+  }
+
+  const client = getClient();
+  const allAdhocIssues = [];
+
+  // Method 1: Get issues from adhoc projects
+  if (pod.initiativeId) {
+    try {
+      const projects = await withCache(
+        `projects_${pod.initiativeId}`,
+        () => client.getProjectsByInitiative(pod.initiativeId),
+        CACHE_TTL.projects
+      )();
+
+      // Find adhoc projects
+      const adhocProjects = projects.filter(p => /adhoc/i.test(p.name));
+
+      for (const project of adhocProjects) {
+        try {
+          const issues = await withCache(
+            `issues_${project.id}`,
+            () => client.getIssuesByProject(project.id),
+            CACHE_TTL.issues
+          )();
+
+          for (const issue of issues) {
+            allAdhocIssues.push({
+              id: issue.id,
+              identifier: issue.identifier,
+              title: issue.title,
+              assignee: issue.assignee?.name || "Unassigned",
+              status: issue.state?.name || "Unknown",
+              statusType: issue.state?.type || "unknown",
+              dueDate: issue.dueDate || null,
+              createdAt: issue.createdAt,
+              priority: issue.priority,
+              source: "project",
+              projectName: project.name,
+            });
+          }
+        } catch (e) {
+          console.log(`[WARN] Failed to fetch issues for adhoc project ${project.name}`);
+        }
+      }
+    } catch (e) {
+      console.log(`[WARN] Failed to fetch projects for ${podName}`);
+    }
+  }
+
+  // Method 2: Get issues with "Adhoc" label from team
+  if (pod.teamId) {
+    try {
+      const query = `
+        query AdhocLabelIssues($teamId: ID!, $first: Int!) {
+          issues(first: $first, filter: {
+            team: { id: { eq: $teamId } },
+            labels: { name: { containsIgnoreCase: "adhoc" } }
+          }) {
+            nodes {
+              id
+              identifier
+              title
+              assignee { name }
+              state { name type }
+              dueDate
+              createdAt
+              priority
+              labels { nodes { name } }
+            }
+          }
+        }
+      `;
+      const data = await client.gql(query, { teamId: pod.teamId, first: 100 });
+      const labeledIssues = data.issues?.nodes || [];
+
+      for (const issue of labeledIssues) {
+        // Avoid duplicates (in case same issue is in adhoc project AND has adhoc label)
+        if (!allAdhocIssues.some(i => i.id === issue.id)) {
+          allAdhocIssues.push({
+            id: issue.id,
+            identifier: issue.identifier,
+            title: issue.title,
+            assignee: issue.assignee?.name || "Unassigned",
+            status: issue.state?.name || "Unknown",
+            statusType: issue.state?.type || "unknown",
+            dueDate: issue.dueDate || null,
+            createdAt: issue.createdAt,
+            priority: issue.priority,
+            source: "label",
+            projectName: null,
+          });
+        }
+      }
+    } catch (e) {
+      // Label-based query might fail if no adhoc label exists - that's OK
+    }
+  }
+
+  // Determine cycle from createdAt
+  const getCycleFromDate = (dateStr) => {
+    if (!dateStr) return "—";
+    const date = new Date(dateStr);
+    const month = date.getMonth(); // 0-11
+    const day = date.getDate();
+
+    // Q1 2026 cycles (rough approximation - 10 working days each)
+    // C1: Jan 1-14, C2: Jan 15-28, C3: Jan 29-Feb 11, C4: Feb 12-25, C5: Feb 26-Mar 11, C6: Mar 12-25
+    if (month === 0 && day <= 14) return "C1";
+    if (month === 0 && day <= 28) return "C2";
+    if (month === 0 || (month === 1 && day <= 11)) return "C3";
+    if (month === 1 && day <= 25) return "C4";
+    if (month === 1 || (month === 2 && day <= 11)) return "C5";
+    if (month === 2) return "C6";
+    return "—";
+  };
+
+  // Add cycle info
+  allAdhocIssues.forEach(issue => {
+    issue.cycle = getCycleFromDate(issue.createdAt);
+  });
+
+  // Sort by createdAt descending (newest first)
+  allAdhocIssues.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  // Count by status
+  const statusCounts = {};
+  allAdhocIssues.forEach(issue => {
+    const st = issue.statusType || "unknown";
+    statusCounts[st] = (statusCounts[st] || 0) + 1;
+  });
+
+  return {
+    success: true,
+    pod: podName,
+    total: allAdhocIssues.length,
+    issues: allAdhocIssues,
+    statusCounts,
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+/**
  * List all pods with basic info
  */
 function listPods() {
@@ -565,6 +722,7 @@ module.exports = {
   getLiveBlockers,
   getLiveComments,
   getLivePodSummary,
+  getAdhocIssues,
   listPods,
 
   // Utilities

@@ -10,6 +10,7 @@ const {
   getLiveBlockers,
   getLiveComments,
   getLivePodSummary,
+  getAdhocIssues,
   listPods,
   normalizeState,
   cacheStats,
@@ -309,19 +310,18 @@ function formatPodSummary(result) {
   return output;
 }
 
-function formatProjectList(result) {
+async function formatProjectList(result) {
   if (!result.success) {
     let msg = `Error: ${result.error}\n${result.message}`;
     if (result.suggestion) msg += `\n\nDid you mean: ${result.suggestion}?`;
     return msg;
   }
 
-  const { pod, projectCount, stats, projects, fetchedAt } = result;
+  const { pod, stats, projects, fetchedAt } = result;
 
   // Separate roadmap projects from adhoc projects
   const isAdhocProject = (p) => /adhoc/i.test(p.name);
   const roadmapProjects = projects.filter(p => !isAdhocProject(p));
-  const adhocProjects = projects.filter(p => isAdhocProject(p));
 
   let output = `## ${pod} - Projects\n\n`;
 
@@ -335,15 +335,55 @@ function formatProjectList(result) {
     });
   }
 
-  // Adhoc projects (separate section)
-  if (adhocProjects.length > 0) {
-    output += `\n`;
-    output += formatProjectsBox(adhocProjects, pod, {
-      title: `Adhoc Projects (${adhocProjects.length})`
-    });
+  // Fetch and display adhoc issues table
+  try {
+    const adhocResult = await getAdhocIssues(pod);
+    if (adhocResult.success && adhocResult.total > 0) {
+      output += `\n`;
+      output += formatAdhocTable(adhocResult);
+    }
+  } catch (e) {
+    // Skip adhoc table if fetch fails
   }
 
   output += `\n*Source: LIVE from Linear (${formatToIST(fetchedAt)})*`;
+  return output;
+}
+
+/**
+ * Format adhoc issues into a table
+ */
+function formatAdhocTable(adhocResult) {
+  const { pod, total, issues, statusCounts } = adhocResult;
+
+  let output = `### Adhoc in Q1 (${total} total)\n\n`;
+
+  // Status summary
+  const inProgress = statusCounts.started || 0;
+  const done = statusCounts.completed || 0;
+  const notStarted = total - inProgress - done;
+  output += `In Progress: ${inProgress} | Done: ${done} | Not Started: ${notStarted}\n\n`;
+
+  if (issues.length === 0) {
+    output += `_No adhoc issues found_\n`;
+    return output;
+  }
+
+  // Table header
+  output += `| ID | Title | Cycle | Assignee | Status | Due Date |\n`;
+  output += `|-----|-------|-------|----------|--------|----------|\n`;
+
+  // Table rows (limit to 15)
+  for (const issue of issues.slice(0, 15)) {
+    const title = issue.title.length > 35 ? issue.title.substring(0, 32) + "..." : issue.title;
+    const dueDate = issue.dueDate ? new Date(issue.dueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—";
+    output += `| ${issue.identifier} | ${title} | ${issue.cycle} | ${issue.assignee} | ${issue.status} | ${dueDate} |\n`;
+  }
+
+  if (issues.length > 15) {
+    output += `\n_...and ${issues.length - 15} more_\n`;
+  }
+
   return output;
 }
 
@@ -2475,7 +2515,7 @@ async function answer(question, snapshot, options = {}) {
 
     case "pod_projects": {
       const result = await getLiveProjects(cmd.podName);
-      return formatProjectList(result);
+      return await formatProjectList(result);
     }
 
     case "pod_live": {
