@@ -2251,40 +2251,41 @@ async function generateMobilePodNarrative(pod, projectCount, stats, projects, po
     }
   }
 
-  // ============== 8. ADHOC IN Q1 ==============
-  try {
-    const adhocResult = await getAdhocIssues(pod);
-    if (adhocResult.success && adhocResult.total > 0) {
-      const adhocRows = adhocResult.issues.slice(0, 15).map(issue => ({
-        id: issue.identifier,
-        title: issue.title.length > 30 ? issue.title.substring(0, 27) + "..." : issue.title,
-        cycle: issue.cycle,
-        assignee: issue.assignee,
-        status: issue.status,
-        dueDate: issue.dueDate ? new Date(issue.dueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"
-      }));
-      out += jsonTable(`📋 Adhoc in Q1 (${adhocResult.total})`, [
-        { key: "id", header: "ID" },
-        { key: "title", header: "Title" },
-        { key: "cycle", header: "Cycle" },
-        { key: "assignee", header: "Assignee" },
-        { key: "status", header: "Status" },
-        { key: "dueDate", header: "Due" }
-      ], adhocRows);
-      out += "\n\n";
-    }
-  } catch (e) {
-    // Skip adhoc section if fetch fails
+  // ============== 8, 9, 10: PARALLEL FETCH (Adhoc, Comments, Insights) ==============
+  // These are independent - run them in parallel for 2-3x speedup
+  const [adhocResult, commentsSummary, insights] = await Promise.all([
+    getAdhocIssues(pod).catch(() => ({ success: false, total: 0 })),
+    fetchPodCommentsSummary(pod, projects).catch(() => null),
+    generatePodInsights(pod, stats, podDelData, issueStats, cycleDels, projects).catch(() => null)
+  ]);
+
+  // 8. ADHOC IN Q1
+  if (adhocResult?.success && adhocResult.total > 0) {
+    const adhocRows = adhocResult.issues.slice(0, 15).map(issue => ({
+      id: issue.identifier,
+      title: issue.title.length > 30 ? issue.title.substring(0, 27) + "..." : issue.title,
+      cycle: issue.cycle,
+      assignee: issue.assignee,
+      status: issue.status,
+      dueDate: issue.dueDate ? new Date(issue.dueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"
+    }));
+    out += jsonTable(`📋 Adhoc in Q1 (${adhocResult.total})`, [
+      { key: "id", header: "ID" },
+      { key: "title", header: "Title" },
+      { key: "cycle", header: "Cycle" },
+      { key: "assignee", header: "Assignee" },
+      { key: "status", header: "Status" },
+      { key: "dueDate", header: "Due" }
+    ], adhocRows);
+    out += "\n\n";
   }
 
-  // ============== 9. RECENT DISCUSSIONS ==============
-  const commentsSummary = await fetchPodCommentsSummary(pod, projects);
+  // 9. RECENT DISCUSSIONS
   if (commentsSummary && commentsSummary.summary) {
     out += `### 💬 Recent Discussions\n${commentsSummary.summary}\n\n`;
   }
 
-  // ============== 10. INSIGHTS ==============
-  const insights = await generatePodInsights(pod, stats, podDelData, issueStats, cycleDels, projects);
+  // 10. INSIGHTS
   if (insights) {
     out += `### 💡 Insights\n${insights}\n\n`;
   }

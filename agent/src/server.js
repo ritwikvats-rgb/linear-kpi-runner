@@ -331,6 +331,31 @@ app.get("/spillover-dashboard", (req, res) => {
   res.sendFile(path.join(__dirname, "../public/spillover-dashboard.html"));
 });
 
+// Background prefetch - warm cache on server start
+async function prefetchPodData() {
+  const pods = ["FTS", "GTS", "Control Center", "Talent Studio", "Platform", "Growth & Reuse", "ML", "FOT", "BTS", "DC"];
+  console.log("[PREFETCH] Warming cache for all pods in background...");
+
+  // Prefetch in parallel batches of 3 to avoid rate limiting
+  for (let i = 0; i < pods.length; i += 3) {
+    const batch = pods.slice(i, i + 3);
+    await Promise.all(batch.map(async (podName) => {
+      try {
+        // This triggers the answer function which populates cache
+        await answer(`status of ${podName}`, null, { mobile: true });
+        console.log(`[PREFETCH] ✓ ${podName} cached`);
+      } catch (e) {
+        console.log(`[PREFETCH] ✗ ${podName} failed: ${e.message}`);
+      }
+    }));
+    // Small delay between batches
+    if (i + 3 < pods.length) {
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  }
+  console.log("[PREFETCH] Cache warming complete!");
+}
+
 // Start server
 app.listen(PORT, () => {
   console.log(`
@@ -353,4 +378,7 @@ app.listen(PORT, () => {
 ║                                                            ║
 ╚════════════════════════════════════════════════════════════╝
 `);
+
+  // Start background prefetch (don't await - let server start immediately)
+  prefetchPodData().catch(e => console.log("[PREFETCH] Error:", e.message));
 });
