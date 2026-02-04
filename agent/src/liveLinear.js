@@ -568,13 +568,34 @@ async function getAdhocIssues(podName) {
 
       for (const project of adhocProjects) {
         try {
-          const issues = await withCache(
-            `issues_${project.id}`,
-            () => client.getIssuesByProject(project.id),
-            CACHE_TTL.issues
-          )();
+          // Fetch issues with team info to filter by correct team
+          const issueQuery = `
+            query IssuesByProjectWithTeam($projectId: ID!, $first: Int!) {
+              issues(first: $first, filter: { project: { id: { eq: $projectId } } }) {
+                nodes {
+                  id
+                  identifier
+                  title
+                  assignee { name }
+                  state { name type }
+                  dueDate
+                  createdAt
+                  priority
+                  team { id }
+                }
+              }
+            }
+          `;
+          const data = await client.gql(issueQuery, { projectId: project.id, first: 100 });
+          const issues = data.issues?.nodes || [];
 
           for (const issue of issues) {
+            // IMPORTANT: Only include issues that belong to THIS pod's team
+            // This prevents GR- issues from showing in Talent Studio, etc.
+            if (pod.teamId && issue.team?.id !== pod.teamId) {
+              continue; // Skip issues from other teams
+            }
+
             allAdhocIssues.push({
               id: issue.id,
               identifier: issue.identifier,
