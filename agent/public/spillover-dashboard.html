@@ -331,7 +331,7 @@
     <!-- Charts -->
     <div class="charts-grid">
       <div class="chart-card">
-        <h3>Delivery % by Pod</h3>
+        <h3>Committed vs Completed by Pod</h3>
         <div class="chart-container">
           <canvas id="deliveryChart"></canvas>
         </div>
@@ -508,35 +508,60 @@
         charts.delivery.destroy();
       }
 
-      const sortedPods = [...pods].sort((a, b) => b.deliveryPct - a.deliveryPct);
+      // Sort by committed (descending)
+      const sortedPods = [...pods].sort((a, b) => b.committed - a.committed);
 
       charts.delivery = new Chart(ctx, {
         type: 'bar',
         data: {
           labels: sortedPods.map(p => p.pod),
-          datasets: [{
-            label: 'Delivery %',
-            data: sortedPods.map(p => p.deliveryPct),
-            backgroundColor: sortedPods.map(p => POD_COLORS[p.pod] || '#64748b'),
-            borderRadius: 6,
-          }]
+          datasets: [
+            {
+              label: 'Committed',
+              data: sortedPods.map(p => p.committed),
+              backgroundColor: '#6366f1',
+              borderRadius: 6,
+              barPercentage: 0.8,
+              categoryPercentage: 0.7,
+            },
+            {
+              label: 'Completed',
+              data: sortedPods.map(p => p.completed),
+              backgroundColor: '#22c55e',
+              borderRadius: 6,
+              barPercentage: 0.8,
+              categoryPercentage: 0.7,
+            }
+          ]
         },
         options: {
-          indexAxis: 'y',
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
-            legend: { display: false }
+            legend: {
+              display: true,
+              position: 'top',
+              labels: { color: '#e2e8f0', usePointStyle: true }
+            },
+            tooltip: {
+              callbacks: {
+                afterBody: function(context) {
+                  const idx = context[0].dataIndex;
+                  const pod = sortedPods[idx];
+                  return `Delivery: ${pod.deliveryPct}%\nSpillover: ${pod.spillover}`;
+                }
+              }
+            }
           },
           scales: {
             x: {
-              max: 100,
-              grid: { color: 'rgba(148, 163, 184, 0.1)' },
-              ticks: { color: '#94a3b8' }
+              grid: { display: false },
+              ticks: { color: '#e2e8f0', maxRotation: 45, minRotation: 45 }
             },
             y: {
-              grid: { display: false },
-              ticks: { color: '#e2e8f0' }
+              beginAtZero: true,
+              grid: { color: 'rgba(148, 163, 184, 0.1)' },
+              ticks: { color: '#94a3b8' }
             }
           }
         }
