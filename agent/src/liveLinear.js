@@ -554,68 +554,50 @@ async function getAdhocIssues(podName) {
   const client = getClient();
   const allAdhocIssues = [];
 
-  // Method 1: Get issues from adhoc projects
-  if (pod.initiativeId) {
+  // Method 1: Get team's issues that are in ANY project with "adhoc" in name
+  // This finds adhoc issues regardless of which initiative the project belongs to
+  if (pod.teamId) {
     try {
-      const projects = await withCache(
-        `projects_${pod.initiativeId}`,
-        () => client.getProjectsByInitiative(pod.initiativeId),
-        CACHE_TTL.projects
-      )();
-
-      // Find adhoc projects
-      const adhocProjects = projects.filter(p => /adhoc/i.test(p.name));
-
-      for (const project of adhocProjects) {
-        try {
-          // Fetch issues with team info to filter by correct team
-          const issueQuery = `
-            query IssuesByProjectWithTeam($projectId: ID!, $first: Int!) {
-              issues(first: $first, filter: { project: { id: { eq: $projectId } } }) {
-                nodes {
-                  id
-                  identifier
-                  title
-                  assignee { name }
-                  state { name type }
-                  dueDate
-                  createdAt
-                  priority
-                  team { id }
-                }
-              }
+      const adhocProjectQuery = `
+        query TeamAdhocIssues($teamId: ID!, $first: Int!) {
+          issues(first: $first, filter: {
+            team: { id: { eq: $teamId } },
+            project: { name: { containsIgnoreCase: "adhoc" } }
+          }) {
+            nodes {
+              id
+              identifier
+              title
+              assignee { name }
+              state { name type }
+              dueDate
+              createdAt
+              priority
+              project { name }
             }
-          `;
-          const data = await client.gql(issueQuery, { projectId: project.id, first: 100 });
-          const issues = data.issues?.nodes || [];
-
-          for (const issue of issues) {
-            // IMPORTANT: Only include issues that belong to THIS pod's team
-            // This prevents GR- issues from showing in Talent Studio, etc.
-            if (pod.teamId && issue.team?.id !== pod.teamId) {
-              continue; // Skip issues from other teams
-            }
-
-            allAdhocIssues.push({
-              id: issue.id,
-              identifier: issue.identifier,
-              title: issue.title,
-              assignee: issue.assignee?.name || "Unassigned",
-              status: issue.state?.name || "Unknown",
-              statusType: issue.state?.type || "unknown",
-              dueDate: issue.dueDate || null,
-              createdAt: issue.createdAt,
-              priority: issue.priority,
-              source: "project",
-              projectName: project.name,
-            });
           }
-        } catch (e) {
-          console.log(`[WARN] Failed to fetch issues for adhoc project ${project.name}`);
         }
+      `;
+      const data = await client.gql(adhocProjectQuery, { teamId: pod.teamId, first: 100 });
+      const issues = data.issues?.nodes || [];
+
+      for (const issue of issues) {
+        allAdhocIssues.push({
+          id: issue.id,
+          identifier: issue.identifier,
+          title: issue.title,
+          assignee: issue.assignee?.name || "Unassigned",
+          status: issue.state?.name || "Unknown",
+          statusType: issue.state?.type || "unknown",
+          dueDate: issue.dueDate || null,
+          createdAt: issue.createdAt,
+          priority: issue.priority,
+          source: "project",
+          projectName: issue.project?.name || null,
+        });
       }
     } catch (e) {
-      console.log(`[WARN] Failed to fetch projects for ${podName}`);
+      console.log(`[WARN] Failed to fetch adhoc project issues for ${podName}:`, e.message);
     }
   }
 
