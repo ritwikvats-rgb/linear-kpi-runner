@@ -2063,8 +2063,9 @@ function jsonTable(title, columns, rows) {
  * 4. Not Started Features
  * 5. Pending DELs
  * 6. Completed (projects + DELs)
- * 7. Recent Discussions
- * 8. Insights
+ * 7. Adhoc in Q1
+ * 8. Recent Discussions
+ * 9. Insights
  */
 async function generateMobilePodNarrative(pod, projectCount, stats, projects, podDelData, currentCycle, cycleDels, issueStats, healthScore, healthStatus, fetchedAt) {
   let out = "";
@@ -2250,13 +2251,39 @@ async function generateMobilePodNarrative(pod, projectCount, stats, projects, po
     }
   }
 
-  // ============== 8. RECENT DISCUSSIONS ==============
+  // ============== 8. ADHOC IN Q1 ==============
+  try {
+    const adhocResult = await getAdhocIssues(pod);
+    if (adhocResult.success && adhocResult.total > 0) {
+      const adhocRows = adhocResult.issues.slice(0, 15).map(issue => ({
+        id: issue.identifier,
+        title: issue.title.length > 30 ? issue.title.substring(0, 27) + "..." : issue.title,
+        cycle: issue.cycle,
+        assignee: issue.assignee,
+        status: issue.status,
+        dueDate: issue.dueDate ? new Date(issue.dueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"
+      }));
+      out += jsonTable(`📋 Adhoc in Q1 (${adhocResult.total})`, [
+        { key: "id", header: "ID" },
+        { key: "title", header: "Title" },
+        { key: "cycle", header: "Cycle" },
+        { key: "assignee", header: "Assignee" },
+        { key: "status", header: "Status" },
+        { key: "dueDate", header: "Due" }
+      ], adhocRows);
+      out += "\n\n";
+    }
+  } catch (e) {
+    // Skip adhoc section if fetch fails
+  }
+
+  // ============== 9. RECENT DISCUSSIONS ==============
   const commentsSummary = await fetchPodCommentsSummary(pod, projects);
   if (commentsSummary && commentsSummary.summary) {
     out += `### 💬 Recent Discussions\n${commentsSummary.summary}\n\n`;
   }
 
-  // ============== 9. INSIGHTS ==============
+  // ============== 10. INSIGHTS ==============
   const insights = await generatePodInsights(pod, stats, podDelData, issueStats, cycleDels, projects);
   if (insights) {
     out += `### 💡 Insights\n${insights}\n\n`;
