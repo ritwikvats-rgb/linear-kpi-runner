@@ -647,6 +647,17 @@ async function getAdhocIssues(podName) {
     }
   }
 
+  // Q1 2026 date range filter
+  const Q1_2026_START = new Date("2026-01-01T00:00:00Z");
+  const Q1_2026_END = new Date("2026-03-31T23:59:59Z");
+
+  // Filter: Only issues created in Q1 2026
+  const q1AdhocIssues = allAdhocIssues.filter(issue => {
+    if (!issue.createdAt) return false;
+    const created = new Date(issue.createdAt);
+    return created >= Q1_2026_START && created <= Q1_2026_END;
+  });
+
   // Determine cycle from createdAt
   const getCycleFromDate = (dateStr) => {
     if (!dateStr) return "—";
@@ -666,16 +677,16 @@ async function getAdhocIssues(podName) {
   };
 
   // Add cycle info
-  allAdhocIssues.forEach(issue => {
+  q1AdhocIssues.forEach(issue => {
     issue.cycle = getCycleFromDate(issue.createdAt);
   });
 
   // Sort by createdAt descending (newest first)
-  allAdhocIssues.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  q1AdhocIssues.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   // Count by status
   const statusCounts = {};
-  allAdhocIssues.forEach(issue => {
+  q1AdhocIssues.forEach(issue => {
     const st = issue.statusType || "unknown";
     statusCounts[st] = (statusCounts[st] || 0) + 1;
   });
@@ -683,8 +694,8 @@ async function getAdhocIssues(podName) {
   return {
     success: true,
     pod: podName,
-    total: allAdhocIssues.length,
-    issues: allAdhocIssues,
+    total: q1AdhocIssues.length,
+    issues: q1AdhocIssues,
     statusCounts,
     fetchedAt: new Date().toISOString(),
   };
