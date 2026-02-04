@@ -2264,6 +2264,83 @@ async function generatePodNarrative(podName, isMobile = false) {
   return await generateMobilePodNarrative(pod, projectCount, stats, projects, podDelData, currentCycle, cycleDels, issueStats, healthScore, healthStatus, projectsResult.fetchedAt);
 }
 
+// ============== HELPER: PARALLEL PROJECT FETCH ==============
+
+/**
+ * Fetch projects from all pods in parallel with retry
+ * Returns array of { podName, projects } for successful fetches
+ */
+async function fetchAllPodsProjectsParallel() {
+  const podsResult = listPods();
+
+  // STEP 1: Parallel fetch all pods
+  const fetchResults = await Promise.all(
+    podsResult.pods.map(async (pod) => {
+      try {
+        const result = await getLiveProjects(pod.name);
+        return { podName: pod.name, result };
+      } catch (e) {
+        return { podName: pod.name, result: { success: false, error: e.message } };
+      }
+    })
+  );
+
+  // Separate successes and failures
+  const allPodProjects = [];
+  let failedPods = [];
+
+  for (const { podName, result } of fetchResults) {
+    if (result.success) {
+      allPodProjects.push({ podName, projects: result.projects });
+    } else {
+      failedPods.push(podName);
+    }
+  }
+
+  // STEP 2: Retry failed pods once
+  if (failedPods.length > 0) {
+    console.log(`[INFO] Retrying ${failedPods.length} failed pods: ${failedPods.join(", ")}`);
+    const retryResults = await Promise.all(
+      failedPods.map(async (podName) => {
+        try {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          const result = await getLiveProjects(podName);
+          return { podName, result };
+        } catch (e) {
+          return { podName, result: { success: false, error: e.message } };
+        }
+      })
+    );
+
+    for (const { podName, result } of retryResults) {
+      if (result.success) {
+        allPodProjects.push({ podName, projects: result.projects });
+        failedPods = failedPods.filter(p => p !== podName);
+      } else {
+        console.log(`[WARN] Failed to fetch projects for ${podName} after retry`);
+      }
+    }
+  }
+
+  return { allPodProjects, failedPods };
+}
+
+/**
+ * Find best matching project across all pods
+ */
+function findBestProjectMatchAcrossPods(allPodProjects, projectQuery) {
+  let bestMatch = null;
+  for (const { podName, projects } of allPodProjects) {
+    for (const p of projects) {
+      const result = scoreProjectMatch(p, projectQuery);
+      if (result && (!bestMatch || result.score > bestMatch.score)) {
+        bestMatch = { podName, project: result.project, score: result.score };
+      }
+    }
+  }
+  return bestMatch;
+}
+
 // ============== MAIN ANSWER FUNCTION ==============
 
 /**
@@ -2398,26 +2475,9 @@ async function answer(question, snapshot, options = {}) {
     }
 
     case "project_blockers": {
-      // Search ALL pods and find the BEST matching project
-      const podsResult = listPods();
-      const allPodProjects = [];
-
-      for (const pod of podsResult.pods) {
-        const result = await getLiveProjects(pod.name);
-        if (result.success) {
-          allPodProjects.push({ podName: pod.name, projects: result.projects });
-        }
-      }
-
-      let bestMatch = null;
-      for (const { podName, projects } of allPodProjects) {
-        for (const p of projects) {
-          const result = scoreProjectMatch(p, cmd.projectName);
-          if (result && (!bestMatch || result.score > bestMatch.score)) {
-            bestMatch = { podName, project: result.project, score: result.score };
-          }
-        }
-      }
+      // Search ALL pods in parallel and find the BEST matching project
+      const { allPodProjects } = await fetchAllPodsProjectsParallel();
+      const bestMatch = findBestProjectMatchAcrossPods(allPodProjects, cmd.projectName);
 
       if (bestMatch) {
         const result = await getLiveBlockers(bestMatch.podName, bestMatch.project.name);
@@ -2429,26 +2489,9 @@ async function answer(question, snapshot, options = {}) {
     }
 
     case "project_comments": {
-      // Search ALL pods and find the BEST matching project
-      const podsResult = listPods();
-      const allPodProjects = [];
-
-      for (const pod of podsResult.pods) {
-        const result = await getLiveProjects(pod.name);
-        if (result.success) {
-          allPodProjects.push({ podName: pod.name, projects: result.projects });
-        }
-      }
-
-      let bestMatch = null;
-      for (const { podName, projects } of allPodProjects) {
-        for (const p of projects) {
-          const result = scoreProjectMatch(p, cmd.projectName);
-          if (result && (!bestMatch || result.score > bestMatch.score)) {
-            bestMatch = { podName, project: result.project, score: result.score };
-          }
-        }
-      }
+      // Search ALL pods in parallel and find the BEST matching project
+      const { allPodProjects } = await fetchAllPodsProjectsParallel();
+      const bestMatch = findBestProjectMatchAcrossPods(allPodProjects, cmd.projectName);
 
       if (bestMatch) {
         const result = await getLiveComments(bestMatch.podName, bestMatch.project.name, 7);
@@ -2492,13 +2535,56 @@ async function answer(question, snapshot, options = {}) {
       let commentsResult = null;
       let matchedPod = null;
 
-      // First, fetch projects from ALL pods and find the BEST match
+      // STEP 1: Parallel fetch all pods (faster than sequential)
+      const fetchResults = await Promise.all(
+        podsResult.pods.map(async (pod) => {
+          try {
+            const result = await getLiveProjects(pod.name);
+            return { podName: pod.name, result };
+          } catch (e) {
+            return { podName: pod.name, result: { success: false, error: e.message } };
+          }
+        })
+      );
+
+      // Separate successes and failures
       const allPodProjects = [];
-      for (const pod of podsResult.pods) {
-        const result = await getLiveProjects(pod.name);
+      let failedPods = [];
+
+      for (const { podName, result } of fetchResults) {
         if (result.success) {
-          allPodProjects.push({ podName: pod.name, projects: result.projects });
+          allPodProjects.push({ podName, projects: result.projects });
+        } else {
+          failedPods.push(podName);
         }
+      }
+
+      // STEP 2: Retry failed pods once (handles temporary glitches)
+      if (failedPods.length > 0) {
+        console.log(`[INFO] Retrying ${failedPods.length} failed pods: ${failedPods.join(", ")}`);
+        const retryResults = await Promise.all(
+          failedPods.map(async (podName) => {
+            try {
+              // Small delay before retry
+              await new Promise(resolve => setTimeout(resolve, 500));
+              const result = await getLiveProjects(podName);
+              return { podName, result };
+            } catch (e) {
+              return { podName, result: { success: false, error: e.message } };
+            }
+          })
+        );
+
+        const stillFailed = [];
+        for (const { podName, result } of retryResults) {
+          if (result.success) {
+            allPodProjects.push({ podName, projects: result.projects });
+          } else {
+            stillFailed.push(podName);
+            console.log(`[WARN] Failed to fetch projects for ${podName} after retry`);
+          }
+        }
+        failedPods = stillFailed;
       }
 
       // Score all projects and find best match
