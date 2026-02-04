@@ -20,6 +20,7 @@ const POD_COLORS = {
   FOT: { primary: "#6366f1", gradient: ["#6366f1", "#818cf8"] },              // Indigo
   "Talent Studio": { primary: "#8b5cf6", gradient: ["#8b5cf6", "#a78bfa"] },  // Purple
   "Growth and Reuse": { primary: "#ec4899", gradient: ["#ec4899", "#f472b6"] }, // Pink
+  DC: { primary: "#06b6d4", gradient: ["#06b6d4", "#22d3ee"] },              // Cyan
 };
 
 // Default color for unknown pods

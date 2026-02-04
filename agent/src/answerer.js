@@ -318,15 +318,30 @@ function formatProjectList(result) {
 
   const { pod, projectCount, stats, projects, fetchedAt } = result;
 
+  // Separate roadmap projects from adhoc projects
+  const isAdhocProject = (p) => /adhoc/i.test(p.name);
+  const roadmapProjects = projects.filter(p => !isAdhocProject(p));
+  const adhocProjects = projects.filter(p => isAdhocProject(p));
+
   let output = `## ${pod} - Projects\n\n`;
 
-  // Stats summary
+  // Stats summary (for roadmap only)
   output += `Status breakdown: Done=${stats.done}, In-Flight=${stats.in_flight}, Not Started=${stats.not_started}\n\n`;
 
-  // Beautified project list
-  output += formatProjectsBox(projects, pod, {
-    title: `${pod} Projects (${projectCount} total)`
-  });
+  // Roadmap projects
+  if (roadmapProjects.length > 0) {
+    output += formatProjectsBox(roadmapProjects, pod, {
+      title: `Roadmap Projects (${roadmapProjects.length})`
+    });
+  }
+
+  // Adhoc projects (separate section)
+  if (adhocProjects.length > 0) {
+    output += `\n`;
+    output += formatProjectsBox(adhocProjects, pod, {
+      title: `Adhoc Projects (${adhocProjects.length})`
+    });
+  }
 
   output += `\n*Source: LIVE from Linear (${formatToIST(fetchedAt)})*`;
   return output;
