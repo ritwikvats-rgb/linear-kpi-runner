@@ -430,6 +430,7 @@
     <div class="greeting">
       <h2>Welcome!</h2>
       <p>Ask me about pod status, DEL metrics, or project updates. All answers come directly from your Linear data.</p>
+      <p style="font-size: 0.85em; color: #94a3b8; margin-top: 8px;">⏱️ Response time: ~30-45 seconds (fetching live data + AI analysis)</p>
     </div>
   </div>
 
@@ -630,7 +631,7 @@
       input.value = '';
       btn.disabled = true;
 
-      const loadingMsg = addMessage('Fetching data from Linear...', 'assistant loading');
+      const loadingMsg = addMessage('Fetching data from Linear... (this may take 30-45 seconds)', 'assistant loading');
 
       try {
         const res = await fetch('/api/ask', {
@@ -676,7 +677,7 @@
       if (greeting) {
         chat.appendChild(greeting.cloneNode(true));
       } else {
-        chat.innerHTML = `<div class="greeting"><h2>Welcome!</h2><p>Ask me about pod status, DEL metrics, or project updates.</p></div>`;
+        chat.innerHTML = `<div class="greeting"><h2>Welcome!</h2><p>Ask me about pod status, DEL metrics, or project updates.</p><p style="font-size: 0.85em; color: #94a3b8; margin-top: 8px;">⏱️ Response time: ~30-45 seconds</p></div>`;
       }
       conversationHistory = [];
     }
