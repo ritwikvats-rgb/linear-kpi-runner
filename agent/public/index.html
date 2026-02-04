@@ -631,7 +631,7 @@
       input.value = '';
       btn.disabled = true;
 
-      const loadingMsg = addMessage('Fetching data from Linear... (this may take 30-45 seconds)', 'assistant loading');
+      const loadingMsg = addMessage('Fetching data from Linear + Slack... (this may take 30-45 seconds)', 'assistant loading');
 
       try {
         const res = await fetch('/api/ask', {
