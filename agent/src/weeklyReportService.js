@@ -292,25 +292,24 @@ async function fetchAllPodActivity() {
               const twoWeeksAgo = Math.floor((Date.now() - 14 * 24 * 60 * 60 * 1000) / 1000);
               const messages = await slackClient.getMessagesWithThreads(channelInfo.channelId, {
                 oldest: String(twoWeeksAgo),
-                maxMessages: 50,
+                maxMessages: 500,
                 includeThreads: true,
               });
 
               if (messages?.length > 0) {
                 // Filter human messages (not bots)
                 const humanMsgs = messages
-                  .filter(m => !m.bot_id && m.type === "message" && m.text)
-                  .slice(0, 10);
+                  .filter(m => !m.bot_id && m.type === "message" && m.text);
 
                 // Also get thread replies
                 const allText = [];
                 for (const m of humanMsgs) {
-                  allText.push({ text: m.text?.substring(0, 200) || "" });
-                  // Include thread replies
+                  allText.push({ text: m.text?.substring(0, 300) || "" });
+                  // Include all thread replies
                   if (m.threadReplies?.length > 0) {
-                    for (const reply of m.threadReplies.slice(0, 3)) {
+                    for (const reply of m.threadReplies) {
                       if (!reply.bot_id && reply.text) {
-                        allText.push({ text: `↳ ${reply.text?.substring(0, 150) || ""}` });
+                        allText.push({ text: `↳ ${reply.text?.substring(0, 250) || ""}` });
                       }
                     }
                   }
@@ -320,7 +319,7 @@ async function fetchAllPodActivity() {
                   slackMessages.push({
                     project: project.name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, ""),
                     source: "Slack",
-                    messages: allText.slice(0, 15),  // Limit total messages per project
+                    messages: allText.slice(0, 200),  // Up to 200 messages per project
                   });
                 }
               }
