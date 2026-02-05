@@ -205,11 +205,21 @@ async function getLiveProjects(podName) {
   }, CACHE_TTL.projects);
 
   try {
-    const projects = await fetchFn();
+    const allProjects = await fetchFn();
 
-    // Compute stats
+    // Filter out adhoc projects and cancelled projects from feature count
+    const isAdhocProject = (p) => /adhoc/i.test(p.name);
+    const isCancelledProject = (p) => {
+      const state = (p.state || "").toLowerCase();
+      return state === "canceled" || state === "cancelled";
+    };
+
+    // Feature projects = exclude adhoc and cancelled
+    const featureProjects = allProjects.filter(p => !isAdhocProject(p) && !isCancelledProject(p));
+
+    // Compute stats only for feature projects
     const stats = { done: 0, in_flight: 0, not_started: 0, cancelled: 0 };
-    for (const p of projects) {
+    for (const p of featureProjects) {
       const state = normalizeState(p.state);
       if (stats[state] !== undefined) stats[state]++;
     }
@@ -219,9 +229,9 @@ async function getLiveProjects(podName) {
       pod: pod.name,
       teamId: pod.teamId,
       initiativeId: pod.initiativeId,
-      projectCount: projects.length,
+      projectCount: featureProjects.length, // Only count feature projects
       stats,
-      projects: projects.map(p => ({
+      projects: featureProjects.map(p => ({
         id: p.id,
         name: p.name,
         state: p.state,
