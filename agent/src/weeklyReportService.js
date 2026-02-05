@@ -279,7 +279,7 @@ async function fetchAllPodActivity() {
         }
       }
 
-      // Fetch Slack messages from project channels
+      // Fetch Slack messages from project channels (14 days, including threads)
       const slackMessages = [];
       if (slackClient) {
         for (const project of inFlightProjects.slice(0, 3)) {
@@ -288,26 +288,39 @@ async function fetchAllPodActivity() {
 
           if (channelInfo) {
             try {
-              // Get messages from last 7 days
-              const oneWeekAgo = Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000);
-              const messages = await slackClient.getMessages(channelInfo.channelId, {
-                oldest: String(oneWeekAgo),
-                limit: 20,
+              // Get messages from last 14 days including threads
+              const twoWeeksAgo = Math.floor((Date.now() - 14 * 24 * 60 * 60 * 1000) / 1000);
+              const messages = await slackClient.getMessagesWithThreads(channelInfo.channelId, {
+                oldest: String(twoWeeksAgo),
+                maxMessages: 50,
+                includeThreads: true,
               });
 
-              if (messages.messages?.length > 0) {
+              if (messages?.length > 0) {
                 // Filter human messages (not bots)
-                const humanMsgs = messages.messages
+                const humanMsgs = messages
                   .filter(m => !m.bot_id && m.type === "message" && m.text)
-                  .slice(0, 5);
+                  .slice(0, 10);
 
-                if (humanMsgs.length > 0) {
+                // Also get thread replies
+                const allText = [];
+                for (const m of humanMsgs) {
+                  allText.push({ text: m.text?.substring(0, 200) || "" });
+                  // Include thread replies
+                  if (m.threadReplies?.length > 0) {
+                    for (const reply of m.threadReplies.slice(0, 3)) {
+                      if (!reply.bot_id && reply.text) {
+                        allText.push({ text: `↳ ${reply.text?.substring(0, 150) || ""}` });
+                      }
+                    }
+                  }
+                }
+
+                if (allText.length > 0) {
                   slackMessages.push({
                     project: project.name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, ""),
                     source: "Slack",
-                    messages: humanMsgs.map(m => ({
-                      text: m.text?.substring(0, 200) || "",
-                    })),
+                    messages: allText.slice(0, 15),  // Limit total messages per project
                   });
                 }
               }
