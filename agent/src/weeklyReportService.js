@@ -1,0 +1,640 @@
+/* agent/src/weeklyReportService.js
+ * Weekly KPI Report Service
+ *
+ * Generates and posts polished KPI reports to Slack every Friday at 7:30 PM IST
+ * Handles cycle transitions intelligently - shows final report for closed cycles
+ * and current status for active cycles.
+ */
+
+const { SlackClient } = require("./slackClient");
+const { computeCycleKpi, computeFeatureMovement, computeWeeklyKpi } = require("./kpiComputer");
+const { loadCycleCalendar } = require("./shared/cycleUtils");
+const { fuelixChat } = require("./fuelixClient");
+
+// ============== CONFIGURATION ==============
+
+const REPORT_SCHEDULE = {
+  dayOfWeek: 5, // Friday (0=Sunday, 5=Friday)
+  hour: 19,     // 7 PM IST
+  minute: 30,   // 30 minutes
+};
+
+const POD_ORDER = [
+  "FTS", "GTS", "Control Center", "Talent Studio", "Platform",
+  "Growth & Reuse", "ML", "FOT", "BTS", "DC"
+];
+
+// ============== CYCLE DETECTION ==============
+
+/**
+ * Determine which cycles to include in the report
+ * Returns: { closedCycle: "C2" | null, currentCycle: "C3", scenario: "transition" | "mid_cycle" }
+ */
+function detectReportCycles(now = new Date()) {
+  const calendar = loadCycleCalendar();
+  if (!calendar?.pods) {
+    return { closedCycle: null, currentCycle: "C3", scenario: "mid_cycle" };
+  }
+
+  // Use FTS calendar as reference (most pods follow similar schedule)
+  const ftsCalendar = calendar.pods["FTS"] || calendar.pods[Object.keys(calendar.pods)[0]];
+
+  const cycles = ["C1", "C2", "C3", "C4", "C5", "C6"];
+  let currentCycle = null;
+  let closedCycle = null;
+
+  // Find Friday of this week (the report day)
+  const friday = new Date(now);
+  friday.setHours(23, 59, 59, 999);
+
+  // Find Saturday of last week (one week back)
+  const lastSaturday = new Date(friday);
+  lastSaturday.setDate(lastSaturday.getDate() - 6);
+  lastSaturday.setHours(0, 0, 0, 0);
+
+  for (const cycle of cycles) {
+    const cycleData = ftsCalendar[cycle];
+    if (!cycleData) continue;
+
+    const start = new Date(cycleData.start);
+    const end = new Date(cycleData.end);
+
+    // Check if this cycle is currently active
+    if (now >= start && now <= end) {
+      currentCycle = cycle;
+    }
+
+    // Check if this cycle ended this week (between last Saturday and this Friday)
+    if (end >= lastSaturday && end <= friday && end < now) {
+      closedCycle = cycle;
+    }
+  }
+
+  // If no current cycle found, find the next one
+  if (!currentCycle) {
+    for (const cycle of cycles) {
+      const cycleData = ftsCalendar[cycle];
+      if (!cycleData) continue;
+      const start = new Date(cycleData.start);
+      if (start > now) {
+        currentCycle = cycle;
+        break;
+      }
+    }
+  }
+
+  // Default to C3 if nothing found
+  currentCycle = currentCycle || "C3";
+
+  const scenario = closedCycle ? "transition" : "mid_cycle";
+
+  return { closedCycle, currentCycle, scenario };
+}
+
+/**
+ * Get cycle date range for display
+ */
+function getCycleDateRange(cycle) {
+  const calendar = loadCycleCalendar();
+  const ftsCalendar = calendar?.pods?.["FTS"];
+  if (!ftsCalendar?.[cycle]) return "";
+
+  const start = new Date(ftsCalendar[cycle].start);
+  const end = new Date(ftsCalendar[cycle].end);
+
+  const formatDate = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return `${formatDate(start)} - ${formatDate(end)}`;
+}
+
+/**
+ * Calculate days into cycle and total days
+ */
+function getCycleProgress(cycle) {
+  const calendar = loadCycleCalendar();
+  const ftsCalendar = calendar?.pods?.["FTS"];
+  if (!ftsCalendar?.[cycle]) return { day: 0, total: 14 };
+
+  const start = new Date(ftsCalendar[cycle].start);
+  const end = new Date(ftsCalendar[cycle].end);
+  const now = new Date();
+
+  const total = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+  const elapsed = Math.ceil((now - start) / (1000 * 60 * 60 * 24));
+  const day = Math.max(1, Math.min(elapsed, total));
+
+  return { day, total };
+}
+
+// ============== DATA AGGREGATION ==============
+
+/**
+ * Aggregate DEL data by pod for a specific cycle
+ */
+function aggregateDelsByCycle(cycleKpi, cycle) {
+  const podData = {};
+
+  for (const row of cycleKpi) {
+    if (row.cycle !== cycle) continue;
+    if (row.status !== "OK") continue;
+
+    podData[row.pod] = {
+      committed: row.committed,
+      completed: row.completed,
+      deliveryPct: parseInt(row.deliveryPct) || 0,
+      spillover: row.spillover,
+    };
+  }
+
+  // Calculate totals
+  let totalCommitted = 0, totalCompleted = 0, totalSpillover = 0;
+  for (const pod of Object.values(podData)) {
+    totalCommitted += pod.committed;
+    totalCompleted += pod.completed;
+    totalSpillover += pod.spillover;
+  }
+
+  const overallPct = totalCommitted > 0 ? Math.round((totalCompleted / totalCommitted) * 100) : 0;
+
+  return {
+    byPod: podData,
+    totals: {
+      committed: totalCommitted,
+      completed: totalCompleted,
+      deliveryPct: overallPct,
+      spillover: totalSpillover,
+    },
+  };
+}
+
+/**
+ * Aggregate feature data
+ */
+function aggregateFeatures(featureMovement) {
+  const podData = {};
+
+  for (const row of featureMovement) {
+    podData[row.pod] = {
+      planned: row.plannedFeatures || 0,
+      done: row.done || 0,
+      inFlight: row.inFlight || 0,
+      notStarted: row.notStarted || 0,
+      progress: row.plannedFeatures > 0 ? Math.round((row.done / row.plannedFeatures) * 100) : 0,
+    };
+  }
+
+  // Calculate totals
+  let totalPlanned = 0, totalDone = 0, totalInFlight = 0, totalNotStarted = 0;
+  for (const pod of Object.values(podData)) {
+    totalPlanned += pod.planned;
+    totalDone += pod.done;
+    totalInFlight += pod.inFlight;
+    totalNotStarted += pod.notStarted;
+  }
+
+  const overallProgress = totalPlanned > 0 ? Math.round((totalDone / totalPlanned) * 100) : 0;
+
+  return {
+    byPod: podData,
+    totals: {
+      planned: totalPlanned,
+      done: totalDone,
+      inFlight: totalInFlight,
+      notStarted: totalNotStarted,
+      progress: overallProgress,
+    },
+  };
+}
+
+// ============== LLM NARRATIVE GENERATION ==============
+
+/**
+ * Generate narrative highlights using LLM
+ */
+async function generateNarrative(delData, featureData, closedCycle, currentCycle, scenario) {
+  const prompt = `You are a technical program manager writing a weekly KPI report for engineering leadership.
+
+CONTEXT:
+${scenario === "transition" ? `- Cycle ${closedCycle} just closed with ${delData.closed?.totals?.deliveryPct || 0}% delivery (${delData.closed?.totals?.completed || 0}/${delData.closed?.totals?.committed || 0} DELs)` : ""}
+- Current cycle: ${currentCycle} with ${delData.current?.totals?.committed || 0} DELs committed
+- Feature progress: ${featureData.totals.done}/${featureData.totals.planned} features complete (${featureData.totals.progress}%)
+
+DEL DELIVERY BY POD (${scenario === "transition" ? closedCycle : currentCycle}):
+${Object.entries(delData[scenario === "transition" ? "closed" : "current"]?.byPod || {})
+  .map(([pod, d]) => `- ${pod}: ${d.completed}/${d.committed} (${d.deliveryPct}%)${d.spillover > 0 ? ` [${d.spillover} spillover]` : ""}`)
+  .join("\n")}
+
+FEATURE PROGRESS:
+${Object.entries(featureData.byPod)
+  .map(([pod, f]) => `- ${pod}: ${f.done}/${f.planned} done, ${f.inFlight} in-flight`)
+  .join("\n")}
+
+Write a brief, professional summary with:
+1. 2-3 key wins (pods that performed well, milestones hit)
+2. 1-2 watch items (pods needing attention, risks)
+${scenario === "transition" ? "3. 1-2 learnings from the closed cycle" : ""}
+
+Keep each point to ONE short sentence. Be specific with pod names and numbers.
+Format as plain text with bullet points using • symbol.
+Do NOT use markdown formatting.`;
+
+  try {
+    const response = await fuelixChat({
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3,
+      timeout: 30000,
+    });
+    return response.trim();
+  } catch (e) {
+    console.error("LLM narrative generation failed:", e.message);
+    return generateFallbackNarrative(delData, featureData, closedCycle, currentCycle, scenario);
+  }
+}
+
+/**
+ * Fallback narrative if LLM fails
+ */
+function generateFallbackNarrative(delData, featureData, closedCycle, currentCycle, scenario) {
+  const data = scenario === "transition" ? delData.closed : delData.current;
+  const byPod = data?.byPod || {};
+
+  // Find top performers (100% or highest)
+  const sorted = Object.entries(byPod).sort((a, b) => b[1].deliveryPct - a[1].deliveryPct);
+  const topPerformers = sorted.filter(([, d]) => d.deliveryPct >= 100).map(([p]) => p);
+  const needsAttention = sorted.filter(([, d]) => d.deliveryPct < 75 && d.committed > 0).map(([p]) => p);
+
+  let narrative = "KEY HIGHLIGHTS\n\n";
+
+  if (topPerformers.length > 0) {
+    narrative += `• ${topPerformers.slice(0, 3).join(", ")} achieved 100% delivery\n`;
+  }
+
+  if (featureData.totals.done > 0) {
+    narrative += `• ${featureData.totals.done} features completed across all pods\n`;
+  }
+
+  if (needsAttention.length > 0) {
+    narrative += `\nWATCH ITEMS\n• ${needsAttention.slice(0, 2).join(", ")} below 75% delivery - monitor closely\n`;
+  }
+
+  return narrative;
+}
+
+// ============== SLACK MESSAGE FORMATTING ==============
+
+/**
+ * Format the complete Slack message
+ */
+function formatSlackMessage(delData, featureData, narrative, closedCycle, currentCycle, scenario) {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" });
+
+  let message = "";
+
+  // Header
+  message += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+  message += `📊  *ENGINEERING KPI REPORT*  |  ${dateStr}\n`;
+  message += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+
+  // If cycle transition, show closed cycle report first
+  if (scenario === "transition" && closedCycle && delData.closed) {
+    message += formatClosedCycleSection(delData.closed, closedCycle);
+    message += "\n";
+  }
+
+  // Current cycle status
+  message += formatCurrentCycleSection(delData.current, currentCycle, scenario);
+  message += "\n";
+
+  // Feature progress
+  message += formatFeatureSection(featureData);
+  message += "\n";
+
+  // Narrative
+  message += "💬 *KEY HIGHLIGHTS*\n";
+  message += "```\n";
+  message += narrative;
+  message += "\n```\n\n";
+
+  // Footer
+  const nextFriday = getNextFriday();
+  message += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+  message += `📅 Next Report: ${nextFriday.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })} @ 7:30 PM IST\n`;
+
+  const dashboardUrl = process.env.DASHBOARD_URL || "https://kpi-dashboard.render.com/dashboard";
+  message += `🔗 Dashboard: ${dashboardUrl}\n`;
+  message += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+
+  return message;
+}
+
+function formatClosedCycleSection(delData, cycle) {
+  const dateRange = getCycleDateRange(cycle);
+
+  let section = "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n";
+  section += `┃  📦 *CYCLE ${cycle} FINAL REPORT*  (${dateRange})  ✅ CLOSED  ┃\n`;
+  section += "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n";
+
+  section += `🎯 Overall Delivery: *${delData.totals.deliveryPct}%* (${delData.totals.completed}/${delData.totals.committed} DELs)\n\n`;
+
+  section += "```\n";
+  section += formatDelTable(delData, true);
+  section += "```\n";
+
+  return section;
+}
+
+function formatCurrentCycleSection(delData, cycle, scenario) {
+  const dateRange = getCycleDateRange(cycle);
+  const { day, total } = getCycleProgress(cycle);
+  const progressPct = Math.round((day / total) * 100);
+
+  const statusEmoji = scenario === "transition" ? "🚀" : "🔄";
+  const statusText = scenario === "transition" ? "JUST STARTED" : "IN PROGRESS";
+
+  let section = "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n";
+  section += `┃  ${statusEmoji} *CYCLE ${cycle} STATUS*  (${dateRange})  ${statusText}  ┃\n`;
+  section += "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n";
+
+  section += `📅 Day ${day} of ${total}  |  Progress: ${progressPct}%\n\n`;
+
+  section += "```\n";
+  section += formatDelTable(delData, false);
+  section += "```\n";
+
+  return section;
+}
+
+function formatDelTable(delData, isClosed) {
+  const header = isClosed
+    ? "POD              │ Planned │ Delivered │ Delivery │ Spillover"
+    : "POD              │ Committed │ Completed │ In-Flight │ Progress";
+
+  const separator = isClosed
+    ? "─────────────────┼─────────┼───────────┼──────────┼──────────"
+    : "─────────────────┼───────────┼───────────┼───────────┼──────────";
+
+  let table = header + "\n" + separator + "\n";
+
+  // Sort pods by delivery % descending
+  const sortedPods = POD_ORDER.filter(p => delData.byPod[p]);
+  sortedPods.sort((a, b) => (delData.byPod[b]?.deliveryPct || 0) - (delData.byPod[a]?.deliveryPct || 0));
+
+  for (const pod of sortedPods) {
+    const d = delData.byPod[pod];
+    if (!d) continue;
+
+    const podStr = pod.padEnd(16);
+    if (isClosed) {
+      const committed = String(d.committed).padStart(7);
+      const completed = String(d.completed).padStart(9);
+      const pct = `${d.deliveryPct}%`.padStart(8);
+      const spill = String(d.spillover).padStart(9);
+      table += `${podStr} │${committed} │${completed} │${pct} │${spill}\n`;
+    } else {
+      const committed = String(d.committed).padStart(9);
+      const completed = String(d.completed).padStart(9);
+      const inFlight = String(d.committed - d.completed).padStart(9);
+      const pct = `${d.deliveryPct}%`.padStart(8);
+      table += `${podStr} │${committed} │${completed} │${inFlight} │${pct}\n`;
+    }
+  }
+
+  // Totals row
+  table += separator + "\n";
+  const totals = delData.totals;
+  if (isClosed) {
+    table += `${"TOTAL".padEnd(16)} │${String(totals.committed).padStart(7)} │${String(totals.completed).padStart(9)} │${`${totals.deliveryPct}%`.padStart(8)} │${String(totals.spillover).padStart(9)}\n`;
+  } else {
+    const inFlight = totals.committed - totals.completed;
+    table += `${"TOTAL".padEnd(16)} │${String(totals.committed).padStart(9)} │${String(totals.completed).padStart(9)} │${String(inFlight).padStart(9)} │${`${totals.deliveryPct}%`.padStart(8)}\n`;
+  }
+
+  return table;
+}
+
+function formatFeatureSection(featureData) {
+  let section = "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n";
+  section += "┃  🎯 *FEATURE PROGRESS*  (Q1 2026 Roadmap)              ┃\n";
+  section += "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n";
+
+  section += "```\n";
+  section += "POD              │ Planned │ Done │ In-Flight │ Progress\n";
+  section += "─────────────────┼─────────┼──────┼───────────┼──────────\n";
+
+  // Sort by progress descending
+  const sortedPods = POD_ORDER.filter(p => featureData.byPod[p]);
+  sortedPods.sort((a, b) => (featureData.byPod[b]?.progress || 0) - (featureData.byPod[a]?.progress || 0));
+
+  for (const pod of sortedPods) {
+    const f = featureData.byPod[pod];
+    if (!f) continue;
+
+    const podStr = pod.padEnd(16);
+    const planned = String(f.planned).padStart(7);
+    const done = String(f.done).padStart(4);
+    const inFlight = String(f.inFlight).padStart(9);
+    const progress = `${f.progress}%`.padStart(8);
+    section += `${podStr} │${planned} │${done} │${inFlight} │${progress}\n`;
+  }
+
+  // Totals
+  section += "─────────────────┼─────────┼──────┼───────────┼──────────\n";
+  const t = featureData.totals;
+  section += `${"TOTAL".padEnd(16)} │${String(t.planned).padStart(7)} │${String(t.done).padStart(4)} │${String(t.inFlight).padStart(9)} │${`${t.progress}%`.padStart(8)}\n`;
+  section += "```\n";
+
+  return section;
+}
+
+function getNextFriday() {
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const daysUntilFriday = (5 - dayOfWeek + 7) % 7 || 7;
+  const nextFriday = new Date(now);
+  nextFriday.setDate(now.getDate() + daysUntilFriday);
+  return nextFriday;
+}
+
+// ============== MAIN REPORT GENERATION ==============
+
+/**
+ * Generate the complete weekly report
+ */
+async function generateWeeklyReport() {
+  console.log("[WEEKLY-REPORT] Starting report generation...");
+
+  // Step 1: Detect which cycles to report on
+  const { closedCycle, currentCycle, scenario } = detectReportCycles();
+  console.log(`[WEEKLY-REPORT] Scenario: ${scenario}, Closed: ${closedCycle}, Current: ${currentCycle}`);
+
+  // Step 2: Fetch KPI data
+  console.log("[WEEKLY-REPORT] Fetching KPI data...");
+  const kpiResult = await computeWeeklyKpi();
+
+  if (!kpiResult.success) {
+    throw new Error(`Failed to fetch KPI data: ${kpiResult.message}`);
+  }
+
+  const { cycleKpi, featureMovement } = kpiResult;
+
+  // Step 3: Aggregate data
+  console.log("[WEEKLY-REPORT] Aggregating data...");
+  const delData = {
+    current: aggregateDelsByCycle(cycleKpi, currentCycle),
+  };
+
+  if (closedCycle) {
+    delData.closed = aggregateDelsByCycle(cycleKpi, closedCycle);
+  }
+
+  const featureData = aggregateFeatures(featureMovement);
+
+  // Step 4: Generate LLM narrative
+  console.log("[WEEKLY-REPORT] Generating narrative...");
+  const narrative = await generateNarrative(delData, featureData, closedCycle, currentCycle, scenario);
+
+  // Step 5: Format Slack message
+  console.log("[WEEKLY-REPORT] Formatting message...");
+  const message = formatSlackMessage(delData, featureData, narrative, closedCycle, currentCycle, scenario);
+
+  return {
+    success: true,
+    message,
+    metadata: {
+      scenario,
+      closedCycle,
+      currentCycle,
+      generatedAt: new Date().toISOString(),
+    },
+  };
+}
+
+/**
+ * Post the weekly report to Slack
+ */
+async function postWeeklyReport() {
+  const channelId = process.env.SLACK_KPI_CHANNEL;
+
+  if (!channelId) {
+    throw new Error("SLACK_KPI_CHANNEL not configured");
+  }
+
+  if (!process.env.SLACK_BOT_TOKEN) {
+    throw new Error("SLACK_BOT_TOKEN not configured");
+  }
+
+  const slack = new SlackClient({ botToken: process.env.SLACK_BOT_TOKEN });
+
+  // Generate report
+  const report = await generateWeeklyReport();
+
+  if (!report.success) {
+    throw new Error("Failed to generate report");
+  }
+
+  // Post to Slack
+  console.log(`[WEEKLY-REPORT] Posting to channel ${channelId}...`);
+  const result = await slack.postMessage(channelId, report.message);
+
+  console.log(`[WEEKLY-REPORT] Posted successfully! ts: ${result.ts}`);
+
+  return {
+    success: true,
+    messageTs: result.ts,
+    channel: channelId,
+    metadata: report.metadata,
+  };
+}
+
+// ============== SCHEDULER ==============
+
+let schedulerInterval = null;
+
+/**
+ * Check if it's time to post the report
+ * Returns true if current time is Friday 7:30 PM IST (±5 minutes)
+ */
+function isReportTime() {
+  const now = new Date();
+
+  // Convert to IST (UTC+5:30)
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const istTime = new Date(now.getTime() + istOffset + now.getTimezoneOffset() * 60 * 1000);
+
+  const dayOfWeek = istTime.getDay();
+  const hour = istTime.getHours();
+  const minute = istTime.getMinutes();
+
+  // Check if Friday (5) between 7:25 PM and 7:35 PM
+  if (dayOfWeek === REPORT_SCHEDULE.dayOfWeek) {
+    if (hour === REPORT_SCHEDULE.hour) {
+      if (minute >= REPORT_SCHEDULE.minute - 5 && minute <= REPORT_SCHEDULE.minute + 5) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Start the weekly report scheduler
+ * Checks every minute if it's time to post
+ */
+function startScheduler() {
+  if (schedulerInterval) {
+    console.log("[SCHEDULER] Already running");
+    return;
+  }
+
+  console.log("[SCHEDULER] Starting weekly report scheduler...");
+  console.log(`[SCHEDULER] Reports will be posted every Friday at 7:30 PM IST`);
+
+  let lastPostDate = null;
+
+  schedulerInterval = setInterval(async () => {
+    if (!isReportTime()) return;
+
+    // Prevent double-posting on the same day
+    const today = new Date().toDateString();
+    if (lastPostDate === today) return;
+
+    console.log("[SCHEDULER] It's report time! Generating weekly report...");
+    lastPostDate = today;
+
+    try {
+      await postWeeklyReport();
+      console.log("[SCHEDULER] Weekly report posted successfully!");
+    } catch (e) {
+      console.error("[SCHEDULER] Failed to post weekly report:", e.message);
+    }
+  }, 60 * 1000); // Check every minute
+
+  console.log("[SCHEDULER] Scheduler started");
+}
+
+/**
+ * Stop the scheduler
+ */
+function stopScheduler() {
+  if (schedulerInterval) {
+    clearInterval(schedulerInterval);
+    schedulerInterval = null;
+    console.log("[SCHEDULER] Stopped");
+  }
+}
+
+// ============== EXPORTS ==============
+
+module.exports = {
+  generateWeeklyReport,
+  postWeeklyReport,
+  startScheduler,
+  stopScheduler,
+  detectReportCycles,
+  isReportTime,
+  // For testing
+  aggregateDelsByCycle,
+  aggregateFeatures,
+  formatSlackMessage,
+};

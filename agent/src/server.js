@@ -21,6 +21,12 @@ const { SlackClient } = require("./slackClient");
 const { LinearClient } = require("./linearClient");
 const { ProjectChannelMapper } = require("./projectChannelMapper");
 const { ProjectAnalyzer } = require("./projectAnalyzer");
+const {
+  generateWeeklyReport,
+  postWeeklyReport,
+  startScheduler,
+  detectReportCycles,
+} = require("./weeklyReportService");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -298,6 +304,111 @@ app.get("/api/slack/analyze/:projectId", async (req, res) => {
   }
 });
 
+// Post KPI summary to configured Slack channel
+app.post("/api/slack/post-kpi", async (req, res) => {
+  try {
+    const slack = getSlackClient();
+    if (!slack) {
+      return res.status(500).json({ error: "SLACK_BOT_TOKEN not configured" });
+    }
+
+    const channelId = process.env.SLACK_KPI_CHANNEL;
+    if (!channelId) {
+      return res.status(500).json({ error: "SLACK_KPI_CHANNEL not configured" });
+    }
+
+    const { pod, message } = req.body;
+
+    // If a specific message is provided, post it
+    if (message) {
+      const result = await slack.postMessage(channelId, message);
+      return res.json({ success: true, ts: result.ts, channel: channelId });
+    }
+
+    // Otherwise, generate a KPI summary for the pod
+    if (pod) {
+      const response = await answer(`status of ${pod}`, null, { mobile: true });
+      const summary = `📊 *KPI Update: ${pod}*\n\n${response}`;
+      const result = await slack.postMessage(channelId, summary);
+      return res.json({ success: true, ts: result.ts, channel: channelId, pod });
+    }
+
+    return res.status(400).json({ error: "Provide 'pod' or 'message' in request body" });
+  } catch (err) {
+    console.error("Error posting to Slack:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Join the KPI channel (for public channels)
+app.post("/api/slack/join-channel", async (req, res) => {
+  try {
+    const slack = getSlackClient();
+    if (!slack) {
+      return res.status(500).json({ error: "SLACK_BOT_TOKEN not configured" });
+    }
+
+    const channelId = req.body.channel || process.env.SLACK_KPI_CHANNEL;
+    if (!channelId) {
+      return res.status(400).json({ error: "No channel specified" });
+    }
+
+    const result = await slack.joinChannel(channelId);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error("Error joining channel:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============== WEEKLY REPORT ENDPOINTS ==============
+
+// Preview the weekly report (without posting)
+app.get("/api/weekly-report/preview", async (req, res) => {
+  try {
+    console.log("[API] Generating weekly report preview...");
+    const report = await generateWeeklyReport();
+    res.json({
+      success: true,
+      preview: report.message,
+      metadata: report.metadata,
+    });
+  } catch (err) {
+    console.error("Error generating report preview:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Post the weekly report to Slack immediately
+app.post("/api/weekly-report/post", async (req, res) => {
+  try {
+    console.log("[API] Posting weekly report to Slack...");
+    const result = await postWeeklyReport();
+    res.json({
+      success: true,
+      message: "Weekly report posted successfully!",
+      ...result,
+    });
+  } catch (err) {
+    console.error("Error posting weekly report:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get current cycle detection info
+app.get("/api/weekly-report/cycles", async (req, res) => {
+  try {
+    const cycles = detectReportCycles();
+    res.json({
+      success: true,
+      ...cycles,
+      nextReportDay: "Friday 7:30 PM IST",
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Serve the main page
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "../public/index.html"));
@@ -374,6 +485,11 @@ app.listen(PORT, () => {
 ║   • /api/spillover/cycle/C2 - Specific cycle spillover     ║
 ║   • /api/spillover/charts   - Chart data                   ║
 ║                                                            ║
+║   Weekly Report:                                           ║
+║   • /api/weekly-report/preview - Preview report            ║
+║   • /api/weekly-report/post    - Post to Slack now         ║
+║   • Auto-posts every Friday @ 7:30 PM IST                  ║
+║                                                            ║
 ║   Press Ctrl+C to stop                                     ║
 ║                                                            ║
 ╚════════════════════════════════════════════════════════════╝
@@ -381,4 +497,11 @@ app.listen(PORT, () => {
 
   // Start background prefetch (don't await - let server start immediately)
   prefetchPodData().catch(e => console.log("[PREFETCH] Error:", e.message));
+
+  // Start weekly report scheduler (posts every Friday 7:30 PM IST)
+  if (process.env.SLACK_KPI_CHANNEL && process.env.SLACK_BOT_TOKEN) {
+    startScheduler();
+  } else {
+    console.log("[SCHEDULER] Weekly report scheduler not started - SLACK_KPI_CHANNEL or SLACK_BOT_TOKEN not configured");
+  }
 });
