@@ -403,13 +403,12 @@ ${Object.entries(featureData.byPod)
   .join("\n")}
 
 Write a brief, professional summary with:
-1. 2-3 key wins (pods that performed well, milestones hit)
-2. 1-2 watch items (pods needing attention, risks)
-${scenario === "transition" ? "3. 1-2 learnings from the closed cycle" : ""}
+1. 3-4 key wins (pods that performed well, milestones hit, notable achievements)
 
 Keep each point to ONE short sentence. Be specific with pod names and numbers.
 Format as plain text with bullet points using • symbol.
-Do NOT use markdown formatting.`;
+Do NOT use markdown formatting.
+Do NOT include watch items, risks, or learnings sections.`;
 
   try {
     const response = await fuelixChat({
@@ -436,7 +435,7 @@ function generateFallbackNarrative(delData, featureData, closedCycle, currentCyc
   const topPerformers = sorted.filter(([, d]) => d.deliveryPct >= 100).map(([p]) => p);
   const needsAttention = sorted.filter(([, d]) => d.deliveryPct < 75 && d.committed > 0).map(([p]) => p);
 
-  let narrative = "KEY HIGHLIGHTS\n\n";
+  let narrative = "KEY WINS\n\n";
 
   if (topPerformers.length > 0) {
     narrative += `• ${topPerformers.slice(0, 3).join(", ")} achieved 100% delivery\n`;
@@ -446,8 +445,8 @@ function generateFallbackNarrative(delData, featureData, closedCycle, currentCyc
     narrative += `• ${featureData.totals.done} features completed across all pods\n`;
   }
 
-  if (needsAttention.length > 0) {
-    narrative += `\nWATCH ITEMS\n• ${needsAttention.slice(0, 2).join(", ")} below 75% delivery - monitor closely\n`;
+  if (featureData.totals.inFlight > 0) {
+    narrative += `• ${featureData.totals.inFlight} features currently in-flight across all pods\n`;
   }
 
   return narrative;
@@ -520,11 +519,50 @@ function formatClosedCycleSection(delData, cycle) {
 
   section += `🎯 Overall Delivery: *${delData.totals.deliveryPct}%* (${delData.totals.completed}/${delData.totals.committed} DELs)\n\n`;
 
+  // Add DEL analysis summary before the table
+  section += generateDelSummary(delData, cycle);
+
   section += "```\n";
   section += formatDelTable(delData, true);
   section += "```\n";
 
   return section;
+}
+
+/**
+ * Generate a brief DEL summary analysis
+ */
+function generateDelSummary(delData, cycle) {
+  const byPod = delData.byPod;
+  const totals = delData.totals;
+
+  // Find top performers (100% delivery)
+  const topPerformers = Object.entries(byPod)
+    .filter(([, d]) => d.deliveryPct === 100 && d.committed > 0)
+    .map(([pod]) => pod);
+
+  // Find pods with most spillover
+  const highSpillover = Object.entries(byPod)
+    .filter(([, d]) => d.spillover > 0)
+    .sort((a, b) => b[1].spillover - a[1].spillover)
+    .slice(0, 2)
+    .map(([pod, d]) => `${pod} (${d.spillover})`);
+
+  let summary = "📊 *Summary:* ";
+
+  if (topPerformers.length > 0) {
+    summary += `${topPerformers.join(", ")} achieved 100% delivery. `;
+  }
+
+  if (totals.spillover > 0) {
+    summary += `${totals.spillover} DELs spilled to next cycle`;
+    if (highSpillover.length > 0) {
+      summary += ` (${highSpillover.join(", ")})`;
+    }
+    summary += ".";
+  }
+
+  return summary + "\n\n";
 }
 
 function formatCurrentCycleSection(delData, cycle, scenario) {
