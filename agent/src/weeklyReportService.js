@@ -779,37 +779,55 @@ async function postWeeklyReport() {
 // ============== SCHEDULER ==============
 
 let schedulerInterval = null;
+let cachedReport = null;  // Cache for pre-generated report
 
 /**
- * Check if it's time to post the report
- * Returns true if current time is Friday 7:30 PM IST (±5 minutes)
+ * Get current IST time
  */
-function isReportTime() {
+function getISTTime() {
   const now = new Date();
-
-  // Convert to IST (UTC+5:30)
   const istOffset = 5.5 * 60 * 60 * 1000;
-  const istTime = new Date(now.getTime() + istOffset + now.getTimezoneOffset() * 60 * 1000);
+  return new Date(now.getTime() + istOffset + now.getTimezoneOffset() * 60 * 1000);
+}
 
+/**
+ * Check if it's time to START generating the report (7:00 PM IST)
+ */
+function isGenerationTime() {
+  const istTime = getISTTime();
   const dayOfWeek = istTime.getDay();
   const hour = istTime.getHours();
   const minute = istTime.getMinutes();
 
-  // Check if Friday (5) between 7:25 PM and 7:35 PM
-  if (dayOfWeek === REPORT_SCHEDULE.dayOfWeek) {
-    if (hour === REPORT_SCHEDULE.hour) {
-      if (minute >= REPORT_SCHEDULE.minute - 5 && minute <= REPORT_SCHEDULE.minute + 5) {
-        return true;
-      }
-    }
-  }
+  // Friday at 7:00 PM IST (±2 minutes)
+  return dayOfWeek === 5 && hour === 19 && minute >= 0 && minute <= 2;
+}
 
-  return false;
+/**
+ * Check if it's time to PUBLISH the report (7:30 PM IST)
+ */
+function isPublishTime() {
+  const istTime = getISTTime();
+  const dayOfWeek = istTime.getDay();
+  const hour = istTime.getHours();
+  const minute = istTime.getMinutes();
+
+  // Friday at 7:30 PM IST (±2 minutes)
+  return dayOfWeek === 5 && hour === 19 && minute >= 30 && minute <= 32;
+}
+
+/**
+ * Legacy function for backwards compatibility
+ */
+function isReportTime() {
+  return isPublishTime();
 }
 
 /**
  * Start the weekly report scheduler
- * Checks every minute if it's time to post
+ * Two-phase approach:
+ *   7:00 PM IST - Fetch data, run LLM analysis, cache report
+ *   7:30 PM IST - Publish cached report to Slack
  */
 function startScheduler() {
   if (schedulerInterval) {
@@ -818,25 +836,62 @@ function startScheduler() {
   }
 
   console.log("[SCHEDULER] Starting weekly report scheduler...");
-  console.log(`[SCHEDULER] Reports will be posted every Friday at 7:30 PM IST`);
+  console.log("[SCHEDULER] Schedule:");
+  console.log("  • 7:00 PM IST - Fetch data & generate report");
+  console.log("  • 7:30 PM IST - Publish to Slack");
 
-  let lastPostDate = null;
+  let lastGenerateDate = null;
+  let lastPublishDate = null;
 
   schedulerInterval = setInterval(async () => {
-    if (!isReportTime()) return;
-
-    // Prevent double-posting on the same day
     const today = new Date().toDateString();
-    if (lastPostDate === today) return;
 
-    console.log("[SCHEDULER] It's report time! Generating weekly report...");
-    lastPostDate = today;
+    // PHASE 1: Generate report at 7:00 PM
+    if (isGenerationTime() && lastGenerateDate !== today) {
+      lastGenerateDate = today;
+      console.log("[SCHEDULER] 7:00 PM - Starting report generation...");
 
-    try {
-      await postWeeklyReport();
-      console.log("[SCHEDULER] Weekly report posted successfully!");
-    } catch (e) {
-      console.error("[SCHEDULER] Failed to post weekly report:", e.message);
+      try {
+        console.log("[SCHEDULER] Fetching data from Linear...");
+        const report = await generateWeeklyReport();
+
+        if (report.success) {
+          cachedReport = report;
+          console.log("[SCHEDULER] ✓ Report generated and cached!");
+          console.log("[SCHEDULER] Waiting until 7:30 PM to publish...");
+        } else {
+          console.error("[SCHEDULER] ✗ Report generation failed");
+        }
+      } catch (e) {
+        console.error("[SCHEDULER] ✗ Error generating report:", e.message);
+      }
+    }
+
+    // PHASE 2: Publish report at 7:30 PM
+    if (isPublishTime() && lastPublishDate !== today) {
+      lastPublishDate = today;
+      console.log("[SCHEDULER] 7:30 PM - Publishing report to Slack...");
+
+      try {
+        if (cachedReport && cachedReport.success) {
+          // Use cached report
+          const channelId = process.env.SLACK_KPI_CHANNEL;
+          const slack = new SlackClient({ botToken: process.env.SLACK_BOT_TOKEN });
+
+          const result = await slack.postMessage(channelId, cachedReport.message);
+          console.log("[SCHEDULER] ✓ Weekly report published! ts:", result.ts);
+
+          // Clear cache
+          cachedReport = null;
+        } else {
+          // Fallback: generate and post immediately if no cache
+          console.log("[SCHEDULER] No cached report, generating now...");
+          await postWeeklyReport();
+          console.log("[SCHEDULER] ✓ Weekly report published!");
+        }
+      } catch (e) {
+        console.error("[SCHEDULER] ✗ Failed to publish report:", e.message);
+      }
     }
   }, 60 * 1000); // Check every minute
 
@@ -850,6 +905,7 @@ function stopScheduler() {
   if (schedulerInterval) {
     clearInterval(schedulerInterval);
     schedulerInterval = null;
+    cachedReport = null;
     console.log("[SCHEDULER] Stopped");
   }
 }
