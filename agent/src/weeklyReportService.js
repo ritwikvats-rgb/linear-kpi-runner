@@ -211,13 +211,40 @@ function aggregateFeatures(featureMovement) {
 // ============== POD ACTIVITY FETCHING ==============
 
 /**
- * Fetch activity data for all pods from Linear (projects, comments)
+ * Fetch activity data for all pods from Linear + Slack
  * Returns per-pod activity summary for LLM to process
  */
 async function fetchAllPodActivity() {
-  console.log("[WEEKLY-REPORT] Fetching pod activity from Linear...");
+  console.log("[WEEKLY-REPORT] Fetching pod activity from Linear + Slack...");
 
   const podActivity = {};
+
+  // Initialize Slack client and channel mapper
+  let slackClient = null;
+  let projectChannelMap = {};
+
+  if (process.env.SLACK_BOT_TOKEN) {
+    slackClient = new SlackClient({ botToken: process.env.SLACK_BOT_TOKEN });
+
+    // Build mapping of project names to Slack channels
+    if (process.env.LINEAR_API_KEY) {
+      try {
+        const linearClient = new LinearClient({ apiKey: process.env.LINEAR_API_KEY });
+        const channelMapper = new ProjectChannelMapper({ linearClient });
+        const projectsWithChannels = await channelMapper.getProjectsWithChannels();
+
+        for (const entry of projectsWithChannels) {
+          projectChannelMap[entry.project.name.toLowerCase()] = {
+            channelId: entry.channelId,
+            projectId: entry.project.id,
+          };
+        }
+        console.log(`[WEEKLY-REPORT] Found ${Object.keys(projectChannelMap).length} projects with Slack channels`);
+      } catch (e) {
+        console.warn("[WEEKLY-REPORT] Failed to load project-channel mapping:", e.message);
+      }
+    }
+  }
 
   // Fetch projects and comments for each pod in parallel
   const fetchPromises = POD_ORDER.map(async (podName) => {
@@ -232,7 +259,7 @@ async function fetchAllPodActivity() {
       const inFlightProjects = projects.filter(p => p.normalizedState === "in_flight");
       const doneProjects = projects.filter(p => p.normalizedState === "done");
 
-      // Fetch comments from in-flight projects (limited to save time)
+      // Fetch Linear comments from in-flight projects
       const recentComments = [];
       for (const project of inFlightProjects.slice(0, 3)) {
         try {
@@ -240,6 +267,7 @@ async function fetchAllPodActivity() {
           if (commentsResult.success && commentsResult.comments?.length > 0) {
             recentComments.push({
               project: project.name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, ""),
+              source: "Linear",
               comments: commentsResult.comments.slice(0, 5).map(c => ({
                 author: c.author,
                 body: c.body?.substring(0, 200) || "",
@@ -248,6 +276,45 @@ async function fetchAllPodActivity() {
           }
         } catch (e) {
           // Skip failed fetches
+        }
+      }
+
+      // Fetch Slack messages from project channels
+      const slackMessages = [];
+      if (slackClient) {
+        for (const project of inFlightProjects.slice(0, 3)) {
+          const projectNameLower = project.name.toLowerCase();
+          const channelInfo = projectChannelMap[projectNameLower];
+
+          if (channelInfo) {
+            try {
+              // Get messages from last 7 days
+              const oneWeekAgo = Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000);
+              const messages = await slackClient.getMessages(channelInfo.channelId, {
+                oldest: String(oneWeekAgo),
+                limit: 20,
+              });
+
+              if (messages.messages?.length > 0) {
+                // Filter human messages (not bots)
+                const humanMsgs = messages.messages
+                  .filter(m => !m.bot_id && m.type === "message" && m.text)
+                  .slice(0, 5);
+
+                if (humanMsgs.length > 0) {
+                  slackMessages.push({
+                    project: project.name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, ""),
+                    source: "Slack",
+                    messages: humanMsgs.map(m => ({
+                      text: m.text?.substring(0, 200) || "",
+                    })),
+                  });
+                }
+              }
+            } catch (e) {
+              // Skip failed Slack fetches
+            }
+          }
         }
       }
 
@@ -264,6 +331,7 @@ async function fetchAllPodActivity() {
             p.name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "")
           ),
           recentComments,
+          slackMessages,
         },
       };
     } catch (e) {
@@ -314,11 +382,21 @@ async function generatePodHighlights(podActivity, delData, featureData, currentC
       if (activity.doneNames?.length > 0) {
         podContext += `Completed: ${activity.doneNames.join(", ")}\n`;
       }
+      // Linear comments
       if (activity.recentComments?.length > 0) {
-        podContext += "Recent Discussions:\n";
+        podContext += "Linear Discussions:\n";
         for (const { project, comments } of activity.recentComments) {
           for (const c of comments.slice(0, 2)) {
             podContext += `  - [${project}] ${c.author}: ${c.body.substring(0, 100)}...\n`;
+          }
+        }
+      }
+      // Slack messages
+      if (activity.slackMessages?.length > 0) {
+        podContext += "Slack Discussions:\n";
+        for (const { project, messages } of activity.slackMessages) {
+          for (const m of messages.slice(0, 2)) {
+            podContext += `  - [${project}] ${m.text.substring(0, 100)}...\n`;
           }
         }
       }
