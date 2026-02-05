@@ -10,6 +10,9 @@ const { SlackClient } = require("./slackClient");
 const { computeCycleKpi, computeFeatureMovement, computeWeeklyKpi } = require("./kpiComputer");
 const { loadCycleCalendar } = require("./shared/cycleUtils");
 const { fuelixChat } = require("./fuelixClient");
+const { getLiveProjects, getLiveComments } = require("./liveLinear");
+const { ProjectChannelMapper } = require("./projectChannelMapper");
+const { LinearClient } = require("./linearClient");
 
 // ============== CONFIGURATION ==============
 
@@ -205,6 +208,177 @@ function aggregateFeatures(featureMovement) {
   };
 }
 
+// ============== POD ACTIVITY FETCHING ==============
+
+/**
+ * Fetch activity data for all pods from Linear (projects, comments)
+ * Returns per-pod activity summary for LLM to process
+ */
+async function fetchAllPodActivity() {
+  console.log("[WEEKLY-REPORT] Fetching pod activity from Linear...");
+
+  const podActivity = {};
+
+  // Fetch projects and comments for each pod in parallel
+  const fetchPromises = POD_ORDER.map(async (podName) => {
+    try {
+      // Get projects for this pod
+      const projectsResult = await getLiveProjects(podName);
+      if (!projectsResult.success) {
+        return { podName, activity: null };
+      }
+
+      const projects = projectsResult.projects || [];
+      const inFlightProjects = projects.filter(p => p.normalizedState === "in_flight");
+      const doneProjects = projects.filter(p => p.normalizedState === "done");
+
+      // Fetch comments from in-flight projects (limited to save time)
+      const recentComments = [];
+      for (const project of inFlightProjects.slice(0, 3)) {
+        try {
+          const commentsResult = await getLiveComments(podName, project.name, 7);
+          if (commentsResult.success && commentsResult.comments?.length > 0) {
+            recentComments.push({
+              project: project.name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, ""),
+              comments: commentsResult.comments.slice(0, 5).map(c => ({
+                author: c.author,
+                body: c.body?.substring(0, 200) || "",
+              })),
+            });
+          }
+        } catch (e) {
+          // Skip failed fetches
+        }
+      }
+
+      return {
+        podName,
+        activity: {
+          totalProjects: projects.length,
+          inFlight: inFlightProjects.length,
+          done: doneProjects.length,
+          inFlightNames: inFlightProjects.slice(0, 5).map(p =>
+            p.name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "")
+          ),
+          doneNames: doneProjects.slice(0, 3).map(p =>
+            p.name.replace(/^Q1 2026\s*:\s*/i, "").replace(/^Q1 26\s*-\s*/i, "")
+          ),
+          recentComments,
+        },
+      };
+    } catch (e) {
+      console.warn(`[WEEKLY-REPORT] Failed to fetch activity for ${podName}:`, e.message);
+      return { podName, activity: null };
+    }
+  });
+
+  const results = await Promise.all(fetchPromises);
+
+  for (const { podName, activity } of results) {
+    if (activity) {
+      podActivity[podName] = activity;
+    }
+  }
+
+  return podActivity;
+}
+
+/**
+ * Generate per-pod highlights using LLM
+ */
+async function generatePodHighlights(podActivity, delData, featureData, currentCycle) {
+  // Build context for each pod
+  let podContext = "";
+
+  for (const podName of POD_ORDER) {
+    const activity = podActivity[podName];
+    const delInfo = delData.current?.byPod[podName];
+    const featureInfo = featureData.byPod[podName];
+
+    if (!activity && !delInfo && !featureInfo) continue;
+
+    podContext += `\n### ${podName}\n`;
+
+    if (delInfo) {
+      podContext += `DELs: ${delInfo.completed}/${delInfo.committed} delivered (${delInfo.deliveryPct}%)\n`;
+    }
+
+    if (featureInfo) {
+      podContext += `Features: ${featureInfo.done}/${featureInfo.planned} done, ${featureInfo.inFlight} in-flight\n`;
+    }
+
+    if (activity) {
+      if (activity.inFlightNames?.length > 0) {
+        podContext += `Active Projects: ${activity.inFlightNames.join(", ")}\n`;
+      }
+      if (activity.doneNames?.length > 0) {
+        podContext += `Completed: ${activity.doneNames.join(", ")}\n`;
+      }
+      if (activity.recentComments?.length > 0) {
+        podContext += "Recent Discussions:\n";
+        for (const { project, comments } of activity.recentComments) {
+          for (const c of comments.slice(0, 2)) {
+            podContext += `  - [${project}] ${c.author}: ${c.body.substring(0, 100)}...\n`;
+          }
+        }
+      }
+    }
+  }
+
+  const prompt = `You are a technical program manager writing a weekly KPI report for engineering leadership.
+
+Based on the following data for each pod, write ONE specific bullet point update for EACH pod that has activity.
+Focus on: what they're working on, recent milestones, or notable discussions.
+
+${podContext}
+
+IMPORTANT RULES:
+1. Write exactly ONE bullet point per pod (max 15 words per bullet)
+2. Be specific - mention project names, features, or milestones
+3. Use present tense and active voice
+4. If a pod has no meaningful activity, write "No significant updates"
+5. Format: "• POD_NAME: [update]"
+
+Example output:
+• FTS: AI Interviewer entering final QA, targeting Feb 10 release
+• GTS: Grading pipeline optimization complete, 40% latency reduction
+• Control Center: Dashboard v2 shipped, working on alert customization`;
+
+  try {
+    const response = await fuelixChat({
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3,
+      timeout: 45000,
+    });
+    return response.trim();
+  } catch (e) {
+    console.error("LLM pod highlights generation failed:", e.message);
+    return generateFallbackPodHighlights(podActivity, delData, featureData);
+  }
+}
+
+/**
+ * Fallback pod highlights if LLM fails
+ */
+function generateFallbackPodHighlights(podActivity, delData, featureData) {
+  const highlights = [];
+
+  for (const podName of POD_ORDER) {
+    const activity = podActivity[podName];
+    const delInfo = delData.current?.byPod[podName];
+
+    if (activity?.inFlightNames?.length > 0) {
+      highlights.push(`• ${podName}: Working on ${activity.inFlightNames[0]}`);
+    } else if (delInfo?.committed > 0) {
+      highlights.push(`• ${podName}: ${delInfo.completed}/${delInfo.committed} DELs delivered`);
+    } else {
+      highlights.push(`• ${podName}: No significant updates`);
+    }
+  }
+
+  return highlights.join("\n");
+}
+
 // ============== LLM NARRATIVE GENERATION ==============
 
 /**
@@ -284,7 +458,7 @@ function generateFallbackNarrative(delData, featureData, closedCycle, currentCyc
 /**
  * Format the complete Slack message
  */
-function formatSlackMessage(delData, featureData, narrative, closedCycle, currentCycle, scenario) {
+function formatSlackMessage(delData, featureData, narrative, podHighlights, closedCycle, currentCycle, scenario) {
   const now = new Date();
   const dateStr = now.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" });
 
@@ -309,8 +483,18 @@ function formatSlackMessage(delData, featureData, narrative, closedCycle, curren
   message += formatFeatureSection(featureData);
   message += "\n";
 
-  // Narrative
-  message += "💬 *KEY HIGHLIGHTS*\n";
+  // Pod-by-pod updates (from Linear + Slack)
+  if (podHighlights) {
+    message += "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n";
+    message += "┃  📝 *POD UPDATES*  (from Linear + Slack)             ┃\n";
+    message += "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n";
+    message += "```\n";
+    message += podHighlights;
+    message += "\n```\n\n";
+  }
+
+  // Narrative (key highlights, watch items, learnings)
+  message += "💬 *KEY HIGHLIGHTS & ANALYSIS*\n";
   message += "```\n";
   message += narrative;
   message += "\n```\n\n";
@@ -489,13 +673,21 @@ async function generateWeeklyReport() {
 
   const featureData = aggregateFeatures(featureMovement);
 
-  // Step 4: Generate LLM narrative
+  // Step 4: Fetch pod activity from Linear (projects, comments)
+  console.log("[WEEKLY-REPORT] Fetching pod activity...");
+  const podActivity = await fetchAllPodActivity();
+
+  // Step 5: Generate pod-specific highlights using LLM
+  console.log("[WEEKLY-REPORT] Generating pod highlights...");
+  const podHighlights = await generatePodHighlights(podActivity, delData, featureData, currentCycle);
+
+  // Step 6: Generate overall narrative using LLM
   console.log("[WEEKLY-REPORT] Generating narrative...");
   const narrative = await generateNarrative(delData, featureData, closedCycle, currentCycle, scenario);
 
-  // Step 5: Format Slack message
+  // Step 7: Format Slack message
   console.log("[WEEKLY-REPORT] Formatting message...");
-  const message = formatSlackMessage(delData, featureData, narrative, closedCycle, currentCycle, scenario);
+  const message = formatSlackMessage(delData, featureData, narrative, podHighlights, closedCycle, currentCycle, scenario);
 
   return {
     success: true,
